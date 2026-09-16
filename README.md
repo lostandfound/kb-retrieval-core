@@ -40,6 +40,12 @@ The initial public API contains only stable value objects. Retrieval backends
 will be added behind explicit protocols so applications do not depend on a
 particular vector database or embedding provider.
 
+## Design and roadmap
+
+Read [Architecture and implementation direction](docs/architecture.md) before
+adding retrieval behavior. It defines the package boundary, input and evidence
+contracts, Claim handling, retrieval pipeline, and staged implementation plan.
+
 ## Development
 
 ```bash
@@ -52,4 +58,3 @@ python3 -m pytest
 ## License
 
 MIT
-
