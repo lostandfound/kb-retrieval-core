@@ -22,9 +22,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/lostandfound/retrieval-core"
-Repository = "https://github.com/lostandfound/retrieval-core"
-Issues = "https://github.com/lostandfound/retrieval-core/issues"
+Homepage = "https://github.com/lostandfound/kb-retrieval-core"
+Repository = "https://github.com/lostandfound/kb-retrieval-core"
+Issues = "https://github.com/lostandfound/kb-retrieval-core/issues"
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]
