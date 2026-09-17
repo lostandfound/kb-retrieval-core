@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "commands": {
+    "build": ["command", "index", "manifest", "schema_version"],
+    "search": ["command", "query", "results", "schema_version"],
+    "context": ["command", "packets", "query", "schema_version"],
+    "inspect": ["chunks", "command", "entity", "schema_version"],
+    "eval": ["by_kind", "command", "evaluation_case_hash", "fusion_config", "k", "mrr", "package_identity", "recall_at_k", "retrieval_mode", "results", "schema_version", "snapshot_hash", "successes"]
+  },
+  "error": ["error", "schema_version"]
+}

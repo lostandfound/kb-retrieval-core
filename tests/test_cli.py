@@ -66,6 +66,33 @@ def test_cli_build_search_inspect_and_eval(tmp_path: Path, capsys) -> None:
     assert context["packets"][0]["entity_path"] == "/entities/source.md"
 
 
+def test_cli_serialization_contract_is_stable_for_golden_commands(tmp_path: Path, capsys) -> None:
+    index = tmp_path / ".retrieval"
+    golden = json.loads((Path(__file__).parent / "fixtures" / "golden" / "cli_contract.json").read_text())
+    assert main(_build_args(index)) == 0
+    capsys.readouterr()
+    commands = [
+        ["search", "teaches", "--index", str(index), "--top-k", "2"],
+        ["context", "teaches", "--index", str(index), "--top-k", "1"],
+        ["inspect", "/entities/source.md", "--index", str(index)],
+        ["eval", "--index", str(index), "--k", "5"],
+    ]
+    for command in commands:
+        assert main(command) == 0
+        first = json.loads(capsys.readouterr().out)
+        assert first["schema_version"] == 1
+        assert set(golden["commands"][first["command"]]).issubset(first)
+        assert main(command) == 0
+        second = json.loads(capsys.readouterr().out)
+        assert second == first
+
+
+def test_cli_error_envelope_has_stable_schema_version(capsys, tmp_path: Path) -> None:
+    assert main(["search", "query", "--index", str(tmp_path / "missing")]) == 2
+    error = json.loads(capsys.readouterr().err)
+    assert error == {"schema_version": 1, "error": error["error"]}
+
+
 def test_cli_graph_expansion_emits_claim_provenance(tmp_path: Path, capsys) -> None:
     index = tmp_path / ".retrieval"
     assert main(_build_args(index)) == 0

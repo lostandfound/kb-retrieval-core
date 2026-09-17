@@ -29,6 +29,9 @@ from .retrieval import GraphExpansionConfig, HybridRetriever, RetrievalConfig, e
 from .rrf import RRFConfig
 
 
+CLI_SCHEMA_VERSION = 1
+
+
 class _ArgumentError(ValueError):
     pass
 
@@ -128,11 +131,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:  # pragma: no cover - argparse enforces the subcommands
             parser.error(f"unknown command {args.command!r}")
             return 2
-        _write_json(result, pretty=args.pretty)
+        _write_json({"schema_version": CLI_SCHEMA_VERSION, **result}, pretty=args.pretty)
         return 0
     except Exception as exc:
         _write_json(
-            {"error": str(exc)},
+            {"schema_version": CLI_SCHEMA_VERSION, "error": str(exc)},
             stream=sys.stderr,
             pretty=getattr(locals().get("args"), "pretty", False),
         )

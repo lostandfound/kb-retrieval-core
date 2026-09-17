@@ -45,7 +45,7 @@ independently from CLI flags.
 
 ## Issue #11: Freeze serialized integration contracts
 
-**Status**: planned
+**Status**: in progress
 **Priority**: high
 **Dependencies**: Issue #10
 
@@ -53,7 +53,7 @@ independently from CLI flags.
 
 - [ ] Golden JSON covers search, strict/non-strict context, inspect, lexical
       evaluation, and hybrid evaluation.
-- [ ] Public serialization versions and additive/breaking change rules are
+- [x] Public serialization versions and additive/breaking change rules are
       documented and tested.
 - [ ] Manifest/schema incompatibility and migration diagnostics run offline.
 - [ ] README public APIs match supported exports and CLI commands.

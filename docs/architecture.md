@@ -838,7 +838,9 @@ answer generation.
 Supported Python APIs are the names exported from `kb_retrieval_core.__all__`
 and listed in the README. Supported CLI commands are `build`, `vector-build`,
 `search`, `context`, `inspect`, and `eval`, including their JSON success and
-error envelopes. Stable serialized artifacts are lexical/vector manifests,
+error envelopes. Every CLI success and error envelope carries
+`schema_version: 1`; additive fields are compatible within a major version.
+Stable serialized artifacts are lexical/vector manifests,
 search evidence, context packets, and evaluation reports. Private helpers,
 SQLite table layout, and test embedders are not application contracts.
 
