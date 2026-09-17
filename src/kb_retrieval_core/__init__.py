@@ -44,6 +44,13 @@ from .sqlite_index import (
     build_sqlite_index,
     open_sqlite_index,
 )
+from .vector_store import (
+    VECTOR_SIDECAR_FORMAT,
+    SQLiteVectorSidecar,
+    VectorRecord,
+    VectorSidecarError,
+    canonical_vector_bytes,
+)
 
 __all__ = [
     "Claim", "Chunk", "Entity", "Evidence", "Reference", "Relation", "SearchHit", "Snapshot",
@@ -60,6 +67,8 @@ __all__ = [
     "ContextAssemblyError", "ContextReference", "ContextReport", "EvidencePacket", "assemble_context", "assemble_evidence", "build_context",
     "EvaluationAggregate", "EvaluationCase", "EvaluationError", "EvaluationLoadError", "EvaluationReport", "EvaluationResult", "RetrievedResult", "evaluate", "load_evaluation_cases",
     "SQLITE_INDEX_FORMAT", "SQLiteIndex", "PersistentSQLiteIndex", "PersistentIndex", "SQLiteIndexError", "build_sqlite_index", "open_sqlite_index",
+    "VECTOR_SIDECAR_FORMAT", "SQLiteVectorSidecar", "VectorRecord", "VectorSidecarError",
+    "canonical_vector_bytes",
 ]
 
 __version__ = "0.1.0"

@@ -69,7 +69,7 @@ and reproducible compatibility identities before any backend is implemented.
 
 **Title**: `feat: add injectable reference embedder`  
 **GitHub Issue**: not created  
-**Status**: implemented locally; pending review and commit
+**Status**: completed in `00272fc`
 **Purpose**: Provide one usable reference implementation and a deterministic
 offline implementation for all subsequent tests without selecting a hosted
 provider.
@@ -102,6 +102,7 @@ provider.
 
 **Title**: `feat: add persistent SQLite vector sidecar`  
 **GitHub Issue**: not created  
+**Status**: implemented locally; pending review and commit
 **Purpose**: Persist disposable vectors independently from the lexical SQLite
 index while detecting every incompatible or stale artifact.
 
@@ -120,14 +121,14 @@ index while detecting every incompatible or stale artifact.
 
 **DoD**:
 
-- [ ] Build/open round trips preserve all vector values and identity fields.
-- [ ] Identical inputs produce byte-equivalent canonical vector artifacts.
-- [ ] Snapshot, chunk, fingerprint, metric, dimension, and format mismatches are
+- [x] Build/open round trips preserve all vector values and identity fields.
+- [x] Identical inputs produce byte-equivalent canonical vector artifacts.
+- [x] Snapshot, chunk, fingerprint, metric, dimension, and format mismatches are
       explicit rebuild conditions.
-- [ ] Corruption and partial counts fail with actionable diagnostics.
-- [ ] A failed rebuild preserves the previous vector sidecar.
-- [ ] Missing, deleted, or corrupt vector sidecars do not damage lexical search.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] Corruption and partial counts fail with actionable diagnostics.
+- [x] A failed rebuild preserves the previous vector sidecar.
+- [x] Missing, deleted, or corrupt vector sidecars do not damage lexical search.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/sqlite-vector-sidecar`  
 **Dependencies**: Issue #1  
