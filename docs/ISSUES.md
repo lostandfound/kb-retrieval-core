@@ -51,7 +51,7 @@ independently from CLI flags.
 
 **DoD**:
 
-- [ ] Golden JSON covers search, strict/non-strict context, inspect, lexical
+- [x] Golden JSON covers search, strict/non-strict context, inspect, lexical
       evaluation, and hybrid evaluation.
 - [x] Public serialization versions and additive/breaking change rules are
       documented and tested.

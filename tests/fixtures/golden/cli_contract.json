@@ -1,11 +1,12 @@
 {
   "schema_version": 1,
   "commands": {
-    "build": ["command", "index", "manifest", "schema_version"],
-    "search": ["command", "query", "results", "schema_version"],
-    "context": ["command", "packets", "query", "schema_version"],
-    "inspect": ["chunks", "command", "entity", "schema_version"],
-    "eval": ["by_kind", "command", "evaluation_case_hash", "fusion_config", "k", "mrr", "package_identity", "recall_at_k", "retrieval_mode", "results", "schema_version", "snapshot_hash", "successes"]
+    "build": {"keys": ["command", "index", "manifest", "schema_version"]},
+    "search": {"keys": ["command", "query", "results", "schema_version"], "values": {"command": "search", "query": "teaches"}},
+    "context": {"keys": ["command", "packets", "query", "schema_version"], "values": {"command": "context", "query": "teaches"}},
+    "inspect": {"keys": ["chunks", "command", "entity", "schema_version"], "values": {"command": "inspect", "entity.entity_path": "/entities/source.md"}},
+    "eval": {"keys": ["by_kind", "command", "evaluation_case_hash", "fusion_config", "k", "mrr", "package_identity", "recall_at_k", "retrieval_mode", "results", "schema_version", "snapshot_hash", "successes"], "values": {"command": "eval", "k": 5, "retrieval_mode": "lexical"}},
+    "hybrid_eval": {"keys": ["by_kind", "command", "evaluation_case_hash", "fusion_config", "k", "mrr", "package_identity", "recall_at_k", "retrieval_mode", "results", "schema_version", "snapshot_hash", "successes"], "values": {"command": "eval", "k": 5, "retrieval_mode": "hybrid", "fusion_config.rrf.constant": 60.0}}
   },
   "error": ["error", "schema_version"]
 }

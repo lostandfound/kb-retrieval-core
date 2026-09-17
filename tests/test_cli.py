@@ -71,17 +71,26 @@ def test_cli_serialization_contract_is_stable_for_golden_commands(tmp_path: Path
     golden = json.loads((Path(__file__).parent / "fixtures" / "golden" / "cli_contract.json").read_text())
     assert main(_build_args(index)) == 0
     capsys.readouterr()
+    assert main(["vector-build", "--index", str(index), "--vector-index", str(tmp_path / ".vectors")]) == 0
+    capsys.readouterr()
     commands = [
-        ["search", "teaches", "--index", str(index), "--top-k", "2"],
-        ["context", "teaches", "--index", str(index), "--top-k", "1"],
-        ["inspect", "/entities/source.md", "--index", str(index)],
-        ["eval", "--index", str(index), "--k", "5"],
+        ("search", ["search", "teaches", "--index", str(index), "--top-k", "2"]),
+        ("context", ["context", "teaches", "--index", str(index), "--top-k", "1"]),
+        ("inspect", ["inspect", "/entities/source.md", "--index", str(index)]),
+        ("eval", ["eval", "--index", str(index), "--k", "5"]),
+        ("hybrid_eval", ["eval", "--index", str(index), "--vector-index", str(tmp_path / ".vectors"), "--mode", "hybrid", "--k", "5"]),
     ]
-    for command in commands:
+    for golden_name, command in commands:
         assert main(command) == 0
         first = json.loads(capsys.readouterr().out)
         assert first["schema_version"] == 1
-        assert set(golden["commands"][first["command"]]).issubset(first)
+        contract = golden["commands"][golden_name]
+        assert set(contract["keys"]).issubset(first)
+        for path, expected in contract.get("values", {}).items():
+            value = first
+            for part in path.split("."):
+                value = value[part]
+            assert value == expected
         assert main(command) == 0
         second = json.loads(capsys.readouterr().out)
         assert second == first
