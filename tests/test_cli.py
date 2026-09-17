@@ -6,8 +6,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from kb_retrieval_core import Entity, SQLiteIndex, Snapshot
-from kb_retrieval_core.cli import _evaluation_config, main
+from kb_retrieval_core.cli import _evaluation_config, main, migrate_json_payload
 from kb_retrieval_core import __version__
 
 
@@ -100,6 +102,15 @@ def test_cli_error_envelope_has_stable_schema_version(capsys, tmp_path: Path) ->
     assert main(["search", "query", "--index", str(tmp_path / "missing")]) == 2
     error = json.loads(capsys.readouterr().err)
     assert error == {"schema_version": 1, "error": error["error"]}
+
+
+def test_cli_json_migrates_legacy_unversioned_envelope() -> None:
+    legacy = {"command": "search", "query": "teaches", "results": []}
+    migrated = migrate_json_payload(legacy)
+    assert migrated == {"schema_version": 1, **legacy}
+    assert migrate_json_payload(migrated) == migrated
+    with pytest.raises(ValueError, match="unsupported CLI schema version"):
+        migrate_json_payload({"schema_version": 99})
 
 
 def test_cli_graph_expansion_emits_claim_provenance(tmp_path: Path, capsys) -> None:

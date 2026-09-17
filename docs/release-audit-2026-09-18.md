@@ -8,17 +8,17 @@ checks. The temporary `docs/tmp/` audit material is not a release artifact.
 | Gate | Evidence |
 | --- | --- |
 | Effective retrieval, RRF, and graph settings are serialized | `tests/test_cli.py`, including hybrid Golden contract |
-| Search/context/inspect/eval JSON compatibility | `tests/fixtures/golden/cli_contract.json` and `test_cli_serialization_contract_is_stable_for_golden_commands` |
+| Search/context/inspect/eval JSON compatibility and migration | `tests/fixtures/golden/cli_contract.json`, `test_cli_serialization_contract_is_stable_for_golden_commands`, and `test_cli_json_migrates_legacy_unversioned_envelope` |
 | Strict and non-strict provenance | `tests/test_context.py`, `tests/test_cli.py`, `test_rag_integration_contract.py` |
 | Domain-neutral offline pipeline | `tests/test_milestone3_acceptance.py` and full suite |
 | Public RAG integration surface | `docs/rag-integration.md` and `tests/test_rag_integration_contract.py` |
-| Version identity | `__version__ == 0.2.0`, CLI/package identity tests |
+| Version identity | `tests/test_artifact_version.py` builds a wheel and compares METADATA with runtime `__version__`; CLI/package identity tests |
 
 Verification on 2026-09-18:
 
 ```text
 PYTHONPATH=src python3 -m pytest -q
-185 passed
+187 passed
 git diff --check
 clean
 ```

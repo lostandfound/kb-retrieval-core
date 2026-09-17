@@ -32,6 +32,23 @@ from .rrf import RRFConfig
 CLI_SCHEMA_VERSION = 1
 
 
+def migrate_json_payload(payload: object) -> dict[str, object]:
+    """Migrate a CLI JSON object from the pre-versioned envelope.
+
+    Version zero was the implicit format emitted before ``schema_version`` was
+    introduced. Migration is intentionally additive; unknown future versions
+    are rejected instead of being guessed at.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("CLI JSON payload must be an object")
+    version = payload.get("schema_version", 0)
+    if version == 0:
+        return {"schema_version": CLI_SCHEMA_VERSION, **payload}
+    if version == CLI_SCHEMA_VERSION:
+        return dict(payload)
+    raise ValueError(f"unsupported CLI schema version {version!r}; expected {CLI_SCHEMA_VERSION}")
+
+
 class _ArgumentError(ValueError):
     pass
 
