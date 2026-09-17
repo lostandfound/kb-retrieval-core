@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass, field
 from math import isfinite
 from types import MappingProxyType
-from typing import Mapping, Protocol, Sequence, runtime_checkable
+from typing import Callable, Mapping, Protocol, Sequence, runtime_checkable
 
 from ._normalization import normalize_json
 
@@ -153,6 +153,120 @@ class Embedder(Protocol):
     def embed_query(self, text: str) -> Sequence[float]: ...
 
 
+class EmbeddingProviderError(RuntimeError):
+    """An injected embedding implementation failed before validation."""
+
+
+DocumentEmbeddingCallable = Callable[
+    [Sequence[EmbeddingDocument]], Sequence[EmbeddedDocument]
+]
+QueryEmbeddingCallable = Callable[[str], Sequence[float]]
+
+
+class InjectedEmbedder:
+    """Reference adapter around caller-supplied document and query callables.
+
+    Construction is side-effect free.  Loading models, creating clients, and
+    managing provider resources remain explicit caller responsibilities.
+    """
+
+    def __init__(
+        self,
+        config: EmbeddingConfig,
+        *,
+        document_embedder: DocumentEmbeddingCallable,
+        query_embedder: QueryEmbeddingCallable,
+    ) -> None:
+        if not isinstance(config, EmbeddingConfig):
+            raise TypeError("config must be an EmbeddingConfig")
+        if not callable(document_embedder):
+            raise TypeError("document_embedder must be callable")
+        if not callable(query_embedder):
+            raise TypeError("query_embedder must be callable")
+        self._config = config
+        self._document_embedder = document_embedder
+        self._query_embedder = query_embedder
+
+    @property
+    def config(self) -> EmbeddingConfig:
+        return self._config
+
+    def embed_documents(
+        self, documents: Sequence[EmbeddingDocument]
+    ) -> tuple[EmbeddedDocument, ...]:
+        requested = tuple(documents)
+        if any(not isinstance(item, EmbeddingDocument) for item in requested):
+            raise TypeError("documents must contain only EmbeddingDocument values")
+        try:
+            results = self._document_embedder(requested)
+        except Exception as exc:
+            raise EmbeddingProviderError(
+                f"document embedding failed for {self._config.implementation}/{self._config.model}: {exc}"
+            ) from exc
+        return validate_document_embeddings(
+            requested, results, dimension=self._config.dimension
+        )
+
+    def embed_query(self, text: str) -> tuple[float, ...]:
+        if not isinstance(text, str):
+            raise TypeError("query text must be a string")
+        if not text.strip():
+            raise ValueError("query text must not be empty")
+        try:
+            vector = self._query_embedder(text)
+        except Exception as exc:
+            raise EmbeddingProviderError(
+                f"query embedding failed for {self._config.implementation}/{self._config.model}: {exc}"
+            ) from exc
+        return validate_query_embedding(vector, dimension=self._config.dimension)
+
+
+class DeterministicTestEmbedder:
+    """Stable offline embedder for mechanics tests, never admission evidence."""
+
+    def __init__(self, config: EmbeddingConfig) -> None:
+        if not isinstance(config, EmbeddingConfig):
+            raise TypeError("config must be an EmbeddingConfig")
+        self._config = config
+
+    @property
+    def config(self) -> EmbeddingConfig:
+        return self._config
+
+    def embed_documents(
+        self, documents: Sequence[EmbeddingDocument]
+    ) -> tuple[EmbeddedDocument, ...]:
+        requested = tuple(documents)
+        if any(not isinstance(item, EmbeddingDocument) for item in requested):
+            raise TypeError("documents must contain only EmbeddingDocument values")
+        if len({item.document_id for item in requested}) != len(requested):
+            raise ValueError("document IDs must be unique")
+        results = tuple(
+            EmbeddedDocument(
+                item.document_id,
+                _deterministic_vector(
+                    item.text,
+                    role="document",
+                    config=self._config,
+                ),
+            )
+            for item in requested
+        )
+        return validate_document_embeddings(
+            requested, results, dimension=self._config.dimension
+        )
+
+    def embed_query(self, text: str) -> tuple[float, ...]:
+        if not isinstance(text, str):
+            raise TypeError("query text must be a string")
+        if not text.strip():
+            raise ValueError("query text must not be empty")
+        return validate_query_embedding(
+            _deterministic_vector(text, role="query", config=self._config),
+            dimension=self._config.dimension,
+        )
+
+
 def embedding_config_to_dict(config: EmbeddingConfig) -> dict[str, object]:
     if not isinstance(config, EmbeddingConfig):
         raise TypeError("config must be an EmbeddingConfig")
@@ -262,11 +376,42 @@ def _fingerprint(value: Mapping[str, object]) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _deterministic_vector(
+    text: str, *, role: str, config: EmbeddingConfig
+) -> tuple[float, ...]:
+    seed = json.dumps(
+        {
+            "embedding_fingerprint": config.fingerprint,
+            "role": role,
+            "text": text,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    components: list[float] = []
+    counter = 0
+    while len(components) < config.dimension:
+        digest = hashlib.sha256(seed + counter.to_bytes(8, "big")).digest()
+        for offset in range(0, len(digest), 4):
+            integer = int.from_bytes(digest[offset : offset + 4], "big")
+            components.append((integer / 4_294_967_295.0) * 2.0 - 1.0)
+            if len(components) == config.dimension:
+                break
+        counter += 1
+    return tuple(components)
+
+
 __all__ = [
+    "DeterministicTestEmbedder",
+    "DocumentEmbeddingCallable",
     "Embedder",
     "EmbeddingConfig",
     "EmbeddingDocument",
+    "EmbeddingProviderError",
     "EmbeddedDocument",
+    "InjectedEmbedder",
+    "QueryEmbeddingCallable",
     "VectorIndexConfig",
     "embedding_config_to_dict",
     "embedding_fingerprint",

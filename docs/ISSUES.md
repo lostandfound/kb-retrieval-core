@@ -33,7 +33,7 @@ cross-component acceptance path.
 
 **Title**: `feat: define embedding contracts and fingerprints`  
 **GitHub Issue**: not created  
-**Status**: implemented locally; pending review and commit  
+**Status**: completed in `5dd0d66`
 **Purpose**: Establish provider-independent document/query embedding boundaries
 and reproducible compatibility identities before any backend is implemented.
 
@@ -69,6 +69,7 @@ and reproducible compatibility identities before any backend is implemented.
 
 **Title**: `feat: add injectable reference embedder`  
 **GitHub Issue**: not created  
+**Status**: implemented locally; pending review and commit
 **Purpose**: Provide one usable reference implementation and a deterministic
 offline implementation for all subsequent tests without selecting a hosted
 provider.
@@ -85,13 +86,13 @@ provider.
 
 **DoD**:
 
-- [ ] Injected document and query callables are exercised independently.
-- [ ] The deterministic embedder returns byte-stable vectors for identical
+- [x] Injected document and query callables are exercised independently.
+- [x] The deterministic embedder returns byte-stable vectors for identical
       ordered input and configuration.
-- [ ] Provider exceptions retain an actionable causal diagnostic.
-- [ ] No optional dependency is imported by the lexical-only path.
-- [ ] Unit tests run with network access unavailable.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] Provider exceptions retain an actionable causal diagnostic.
+- [x] No optional dependency is imported by the lexical-only path.
+- [x] Unit tests run with network access unavailable.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/reference-embedder`  
 **Dependencies**: Issue #1  

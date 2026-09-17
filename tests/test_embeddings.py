@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from dataclasses import replace
 from math import inf, nan
+from struct import pack
 
 import pytest
 
 from kb_retrieval_core import (
+    DeterministicTestEmbedder,
     Embedder,
     EmbeddedDocument,
     EmbeddingConfig,
     EmbeddingDocument,
+    EmbeddingProviderError,
+    InjectedEmbedder,
     VectorIndexConfig,
     embedding_config_to_dict,
     embedding_fingerprint,
@@ -182,3 +186,136 @@ def test_embedder_protocol_exposes_distinct_document_and_query_methods() -> None
     documents = (EmbeddingDocument("one", "document"),)
     assert embedder.embed_documents(documents)[0].document_id == "one"
     assert embedder.embed_query("query") != embedder.embed_documents(documents)[0].vector
+
+
+def test_injected_embedder_is_side_effect_free_and_validates_both_paths() -> None:
+    calls: list[tuple[str, object]] = []
+
+    def documents(values):
+        calls.append(("documents", values))
+        return tuple(
+            EmbeddedDocument(item.document_id, (1.0, 2.0, 3.0)) for item in values
+        )
+
+    def query(text):
+        calls.append(("query", text))
+        return (3.0, 2.0, 1.0)
+
+    embedder = InjectedEmbedder(
+        _config(), document_embedder=documents, query_embedder=query
+    )
+    assert calls == []
+    requested = (EmbeddingDocument("one", "first"),)
+    assert embedder.embed_documents(requested) == (
+        EmbeddedDocument("one", (1.0, 2.0, 3.0)),
+    )
+    assert embedder.embed_query("question") == (3.0, 2.0, 1.0)
+    assert calls == [("documents", requested), ("query", "question")]
+    assert isinstance(embedder, Embedder)
+
+
+def test_injected_embedder_rejects_invalid_provider_outputs() -> None:
+    config = _config()
+    requested = (
+        EmbeddingDocument("one", "first"),
+        EmbeddingDocument("two", "second"),
+    )
+    reordered = InjectedEmbedder(
+        config,
+        document_embedder=lambda _values: (
+            EmbeddedDocument("two", (1.0, 2.0, 3.0)),
+            EmbeddedDocument("one", (1.0, 2.0, 3.0)),
+        ),
+        query_embedder=lambda _text: (1.0, 2.0, 3.0),
+    )
+    with pytest.raises(ValueError, match="order"):
+        reordered.embed_documents(requested)
+
+    wrong_dimension = InjectedEmbedder(
+        config,
+        document_embedder=lambda values: tuple(
+            EmbeddedDocument(item.document_id, (1.0, 2.0)) for item in values
+        ),
+        query_embedder=lambda _text: (1.0, 2.0),
+    )
+    with pytest.raises(ValueError, match="dimension"):
+        wrong_dimension.embed_documents(requested)
+    with pytest.raises(ValueError, match="dimension"):
+        wrong_dimension.embed_query("question")
+
+
+def test_injected_embedder_preserves_provider_exception_cause() -> None:
+    document_failure = LookupError("document model unavailable")
+    query_failure = ConnectionError("query model unavailable")
+
+    def fail_documents(_values):
+        raise document_failure
+
+    def fail_query(_text):
+        raise query_failure
+
+    embedder = InjectedEmbedder(
+        _config(), document_embedder=fail_documents, query_embedder=fail_query
+    )
+    with pytest.raises(EmbeddingProviderError, match="document model unavailable") as document_error:
+        embedder.embed_documents((EmbeddingDocument("one", "text"),))
+    assert document_error.value.__cause__ is document_failure
+    with pytest.raises(EmbeddingProviderError, match="query model unavailable") as query_error:
+        embedder.embed_query("question")
+    assert query_error.value.__cause__ is query_failure
+
+
+def test_injected_embedder_validates_construction_and_input_before_calling_provider() -> None:
+    with pytest.raises(TypeError, match="document_embedder"):
+        InjectedEmbedder(_config(), document_embedder=None, query_embedder=lambda _text: ())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="query_embedder"):
+        InjectedEmbedder(_config(), document_embedder=lambda _values: (), query_embedder=None)  # type: ignore[arg-type]
+
+    called = False
+
+    def query(_text):
+        nonlocal called
+        called = True
+        return (1.0, 2.0, 3.0)
+
+    embedder = InjectedEmbedder(
+        _config(), document_embedder=lambda _values: (), query_embedder=query
+    )
+    with pytest.raises(ValueError, match="must not be empty"):
+        embedder.embed_query("  ")
+    assert not called
+
+
+def test_deterministic_test_embedder_is_stable_ordered_and_role_specific() -> None:
+    config = _config(dimension=19)
+    first = DeterministicTestEmbedder(config)
+    second = DeterministicTestEmbedder(config)
+    documents = (
+        EmbeddingDocument("one", "same text"),
+        EmbeddingDocument("two", "different text"),
+    )
+    first_results = first.embed_documents(documents)
+    second_results = second.embed_documents(documents)
+    assert first_results == second_results
+    assert pack("!19d", *first_results[0].vector) == pack(
+        "!19d", *second_results[0].vector
+    )
+    assert tuple(item.document_id for item in first_results) == ("one", "two")
+    assert all(len(item.vector) == 19 for item in first_results)
+    assert first.embed_query("same text") != first_results[0].vector
+    assert first.embed_query("same text") == second.embed_query("same text")
+    assert first_results != DeterministicTestEmbedder(
+        replace(config, revision="v2")
+    ).embed_documents(documents)
+
+
+def test_deterministic_test_embedder_handles_empty_batch_and_duplicate_ids() -> None:
+    embedder = DeterministicTestEmbedder(_config())
+    assert embedder.embed_documents(()) == ()
+    with pytest.raises(ValueError, match="unique"):
+        embedder.embed_documents(
+            (
+                EmbeddingDocument("same", "first"),
+                EmbeddingDocument("same", "second"),
+            )
+        )
