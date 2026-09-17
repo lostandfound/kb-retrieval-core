@@ -1,65 +1,36 @@
 # kb-retrieval-core
 
-Domain-independent retrieval primitives for structured Markdown knowledge bases.
+`kb-retrieval-core` は、構造化 Markdown ナレッジベースを決定的で出典参照可能な evidence に変換する、ドメイン非依存の Python パッケージです。
 
-`kb-retrieval-core` turns a validated knowledge-base snapshot into ranked,
-source-addressable evidence. It does not own the knowledge base, call an LLM,
-or generate answers.
+## 範囲
 
-## Scope
+提供する機能:
 
-The package is intended to provide:
+- Snapshot、`graph.json`、`references.yml` の読み込み
+- 見出し単位の決定的 chunking
+- SQLite lexical index と character n-gram 検索
+- 任意 vector embedding の契約・fingerprint・SQLite sidecar
+- vector-only 検索、entity-level RRF、lexical/vector/hybrid orchestration
+- passage、relation、Claim の provenance 保持
+- Recall@k / MRR 評価と consumer admission gate
+- オフライン JSON CLI
 
-- deterministic entity and heading-aware chunking;
-- lexical, vector, and graph retrieval adapters;
-- hybrid ranking;
-- source and claim provenance preservation;
-- retrieval evaluation such as Recall@k and MRR;
-- backend-independent evidence packets for downstream applications.
+このパッケージは knowledge-base authoring、ontology validation、LLM、prompt、HTTP API、UI、認証、会話状態を扱いません。Markdown と生成 graph が source of truth で、検索 index と vector sidecar は再生成可能な derived artifact です。
 
-It deliberately excludes:
-
-- knowledge-base authoring and validation;
-- ontology and claim-state rules;
-- prompts, model clients, chat history, APIs, and user interfaces;
-- databases as a source of truth.
-
-Markdown and its generated graph remain the source inputs. Search indexes are
-disposable artifacts that must be reproducible from those inputs.
-
-## Package relationship
-
-```text
-kb-ontology-core   ontology and claim rules
-kb-harness-core    KB authoring, validation, and derived artifacts
-kb-retrieval-core  indexing, retrieval, and evidence assembly
-RAG application    answer generation, API, UI, and conversation state
-```
-
-The initial public API contains only stable value objects. Retrieval backends
-will be added behind explicit protocols so applications do not depend on a
-particular vector database or embedding provider.
-
-## Design and roadmap
-
-Read [Architecture and implementation direction](docs/architecture.md) before
-adding retrieval behavior. It defines the package boundary, input and evidence
-contracts, Claim handling, retrieval pipeline, and staged implementation plan.
-
-## Development
+## インストールとテスト
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
 python3 -m pip install -e '.[test]'
-python3 -m pytest
+PYTHONPATH=src python3 -m pytest
 ```
+
+外部 embedding SDK、モデルファイル、ネットワークは不要です。`DeterministicTestEmbedder` と `InjectedEmbedder` はテストおよびオフライン検証用です。
 
 ## CLI
 
-The package provides an offline `kb-retrieval` command (also available as
-`python3 -m kb_retrieval_core`). Build a disposable SQLite index from a KB
-snapshot, then search or inspect it:
+受け入れ fixture を使った lexical 検索:
 
 ```bash
 kb-retrieval build \
@@ -68,13 +39,46 @@ kb-retrieval build \
   --references tests/fixtures/acceptance/references.yml \
   --eval tests/fixtures/acceptance/evals/rag-eval.yml \
   --index .retrieval
-kb-retrieval search "Source Person teaches Target Person" --index .retrieval
+
+kb-retrieval search "teaches" --index .retrieval --mode lexical
 kb-retrieval inspect /entities/source.md --index .retrieval
-kb-retrieval eval --index .retrieval
+kb-retrieval eval --index .retrieval --mode lexical
 ```
 
-All commands emit JSON and run without an LLM, network access, or a separate
-database service.
+すべての出力は JSON です。構文エラー、入力エラー、未構成の vector resource は stderr に JSON 診断を出し、非ゼロ終了します。
+
+vector / hybrid mode は、あらかじめ作成した SQLite vector sidecar を `--vector-index` で指定します。sidecar の manifest に保存された embedding configuration と lexical index の hash が検証されます。
+
+```bash
+kb-retrieval search "teaches" \
+  --index .retrieval \
+  --vector-index .retrieval-vectors \
+  --mode hybrid
+```
+
+vector retrieval は optional かつ default-disabled です。consumer が実データで lexical baseline を上回ることを確認するまで、既定検索モードを変更しないでください。
+
+## Python API
+
+主要な入口は `kb_retrieval_core` の公開 export です。
+
+- `load_snapshot`, `chunk_snapshot`
+- `LexicalIndex`, `SQLiteIndex`
+- `EmbeddingConfig`, `InjectedEmbedder`, `DeterministicTestEmbedder`
+- `SQLiteVectorSidecar`, `VectorRetriever`
+- `RRFConfig`, `fuse_entity_rankings`
+- `HybridRetriever`, `RetrievalConfig`
+- `evaluate`, `EvaluationProfile`, `compare_evaluations`
+- `assemble_context`
+
+検索結果は entity path、section、passage source IDs、適用された relation / Claim の status・confidence・path を保持します。source IDs は内部で bare ID に正規化され、context assembly が references と解決します。
+
+## 設計資料とリリース基準
+
+- [Architecture implementation direction](docs/architecture.md): package boundary、provenance、実装順序、Milestone 3 acceptance gate
+- [Issue breakdown](docs/ISSUES.md): 実装単位と完了条件
+
+リリース前には `PYTHONPATH=src python3 -m pytest`、`git diff --check`、CLI の acceptance fixture、consumer-owned admission profile を実行してください。合格した consumer だけが vector/hybrid を既定有効化できます。
 
 ## License
 
