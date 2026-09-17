@@ -681,6 +681,114 @@ following:
 5. Admit the feature only when evaluation shows value over the lexical
    baseline.
 
+Milestone 3 has two separate gates. The implementation gate belongs to this
+repository and must be executable offline. The admission gate belongs to each
+consumer KB and decides whether that consumer enables hybrid retrieval by
+default. Passing the implementation gate may therefore ship an experimental,
+default-disabled vector feature without claiming that it improves retrieval.
+
+Implement Milestone 3 in this order so the optional boundary is testable before
+ranking behavior changes:
+
+1. Define package-owned embedding and vector-store protocols. The embedding
+   boundary distinguishes ordered `embed_documents` input from `embed_query`
+   input because asymmetric models may use different encoders or task prefixes.
+   Both operations return finite, fixed-dimension vectors and never expose an
+   SDK-specific response object.
+2. Define a canonical embedding configuration containing provider or
+   implementation identity, model name and revision, document and query task
+   settings, tokenizer or preprocessing identity, pooling, normalization, and
+   dimension. Hash its canonical JSON representation as the
+   `embedding_fingerprint`. Define a separate vector-index fingerprint that also
+   includes similarity metric and vector-format version.
+3. Add a deterministic injected implementation for offline tests, then one
+   local or injectable reference implementation. Importing and running the
+   lexical package must not import an embedding SDK, load model files, contact a
+   network, or initialize a model.
+4. Implement the local reference vector store as a separate, disposable,
+   versioned SQLite sidecar keyed to the lexical index snapshot and chunk hash.
+   It stores chunk ID, chunk content hash, vector, embedding fingerprint,
+   similarity metric, dimension, and vector-format version. It is built with
+   atomic replacement, may be deleted without damaging lexical retrieval, and
+   is never treated as source data. External vector-store adapters must expose
+   the same manifest semantics even when their physical storage differs.
+5. Implement vector chunk retrieval independently before adding fusion. It
+   returns the same source-addressable `SearchHit` and `Evidence` contracts as
+   lexical retrieval.
+6. Normalize backend rankings to one fusion candidate per `entity_path` before
+   applying Reciprocal Rank Fusion. For passage and vector rankings, the
+   highest-ranked chunk for an entity supplies that backend's rank and retained
+   passage. An entity-only hit contributes its entity rank; if no passage
+   backend contributes, evidence falls back to the entity description or its
+   lowest-ordinal chunk. After fusion, select the highest-ranked contributing
+   passage using a documented backend precedence and retain its section, chunk
+   ID, text, and passage sources. Use `entity_path` as the final tie-breaker.
+   Record the RRF constant, backend weights, backend cutoffs, and passage
+   precedence as fusion configuration.
+7. Extend evaluation reports with retrieval mode, snapshot hash,
+   evaluation-case hash, cutoff, package commit or release identity, embedding
+   and vector-index fingerprints when applicable, and the complete fusion
+   configuration.
+
+#### Milestone 3 implementation acceptance
+
+Milestone 3 implementation is accepted when repository-owned executable offline
+tests verify all of the following:
+
+- package import, snapshot loading, SQLite build, lexical search, and lexical
+  evaluation still work when no embedding implementation, model files, vector
+  store, network, or optional embedding dependency is available;
+- protocol tests reject non-finite values, inconsistent dimensions, missing or
+  extra results, duplicate chunk IDs, and document-result reordering with
+  actionable diagnostics, while independently exercising document and query
+  embedding paths;
+- identical ordered text, canonical configuration, and deterministic test
+  embedder produce identical fingerprints, byte-equivalent vector artifacts,
+  and identical vector rankings;
+- reopening a vector sidecar preserves its fingerprints, metric, dimension,
+  chunk IDs, content hashes, and vector values; a snapshot, chunk-content,
+  embedding-fingerprint, metric, dimension, or format mismatch is an explicit
+  rebuild condition and never silently reuses stale vectors;
+- vector-sidecar deletion, corruption, and failed rebuild leave the lexical
+  SQLite index readable and searchable;
+- vector hits and fused hits preserve entity path, section, selected chunk ID,
+  passage source IDs, and applicable relation or Claim provenance without
+  substituting target-entity sources for assertion sources;
+- vector-only retrieval has deterministic cutoffs and ordering, and fusion has
+  deterministic behavior for several chunks from one entity, duplicate backend
+  candidates, equal fused scores, entity-only hits, empty optional inputs, and
+  different backend score scales;
+- CLI exposure makes vector use explicit and default-disabled, reports
+  fingerprints and fusion configuration in JSON, and returns a non-zero JSON
+  diagnostic for unavailable models, missing or incompatible sidecars, invalid
+  dimensions, or invalid fusion parameters.
+
+#### Consumer admission gate
+
+Before tuning a hybrid candidate, the consumer records an evaluation profile
+that fixes separate development and admission case sets, the primary metric,
+minimum meaningful improvement, secondary-metric regression tolerance, cutoff,
+and permitted per-query regressions. The lexical baseline and hybrid candidate
+must use the same admission cases, snapshot, and cutoff. Synthetic fixtures may
+test mechanics but never count toward admission.
+
+A consumer may enable hybrid retrieval by default only when a reproducible
+admission report shows all of the following:
+
+- the predeclared primary metric improves by at least its predeclared minimum;
+- each secondary metric remains within its predeclared regression tolerance;
+- at least one documented lexical-gap case becomes successful;
+- general regression cases remain within the predeclared per-query regression
+  allowance; and
+- the report contains every identity and configuration field required above.
+
+The consumer admission set must include documented lexical gaps, including at
+least one Japanese paraphrase or synonym case whose expected evidence cannot be
+recovered by direct character overlap alone. If the admission set has no such
+gap, the candidate fails a threshold, or the report is not reproducible, vector
+retrieval remains experimental and default-disabled. Baseline and candidate
+reports are derived evaluation artifacts, not knowledge-base source data.
+
 ### Milestone 4: retrieval integration contract
 
 1. Stabilize evidence packet serialization.
@@ -713,7 +821,7 @@ measurements rather than preference:
   baseline;
 - long-section overlap and future subchunk identifiers;
 - query classification rules for graph expansion;
-- embedding provider and vector persistence format;
+- concrete embedding provider/model and consumer admission thresholds;
 - whether a shared public parsing package is justified;
 - the eventual stable CLI flags and persistent-index manifest details.
 
