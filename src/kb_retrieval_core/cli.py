@@ -19,6 +19,11 @@ from .evaluation import EvaluationReport, evaluate, load_evaluation_cases
 from .models import Claim, Entity, Reference, Relation, SearchHit
 from .snapshot import load_snapshot
 from .sqlite_index import SQLiteIndex
+from .retrieval import RetrievalError
+from .embeddings import DeterministicTestEmbedder, EmbeddingConfig
+from .vector_store import SQLiteVectorSidecar
+from .vector_retrieval import VectorRetriever
+from .retrieval import HybridRetriever, RetrievalConfig
 
 
 class _ArgumentError(ValueError):
@@ -47,6 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("query")
     _index_argument(search, required=True)
     search.add_argument("--top-k", type=int, default=5)
+    search.add_argument("--mode", choices=("lexical", "vector", "hybrid"), default="lexical")
+    search.add_argument("--vector-index", type=Path)
     _pretty_argument(search)
 
     inspect = commands.add_parser("inspect", help="inspect a persisted entity and its chunks")
@@ -58,6 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument("--eval", "--eval-path", dest="eval_path", type=Path)
     _index_argument(evaluation, required=True)
     evaluation.add_argument("--k", "--top-k", dest="k", type=int, default=5)
+    evaluation.add_argument("--mode", choices=("lexical", "vector", "hybrid"), default="lexical")
+    evaluation.add_argument("--vector-index", type=Path)
     _pretty_argument(evaluation)
     return parser
 
@@ -108,7 +117,8 @@ def _build(args: argparse.Namespace) -> dict[str, object]:
 
 def _search(args: argparse.Namespace) -> dict[str, object]:
     with SQLiteIndex.open(args.index_path) as index:
-        hits = index.search(args.query, top_k=args.top_k)
+        retriever = _cli_retriever(index, args)
+        hits = retriever.search(args.query, config=RetrievalConfig(mode=args.mode, top_k=args.top_k))
     return {"command": "search", "query": args.query, "results": [_hit_to_dict(hit) for hit in hits]}
 
 
@@ -141,8 +151,27 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         if eval_path is None:
             raise ValueError("evaluation path is required (pass --eval-path or build with --eval-path)")
         cases = load_evaluation_cases(eval_path)
-        report = evaluate(cases, index.search, k=args.k)
+        retriever = _cli_retriever(index, args)
+        report = evaluate(cases, lambda query, top_k=args.k: retriever.search(query, config=RetrievalConfig(mode=args.mode, top_k=top_k)), k=args.k, retrieval_mode=args.mode)
     return {"command": "eval", **_report_to_dict(report)}
+
+
+def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetriever:
+    if args.mode == "lexical":
+        return HybridRetriever(index.snapshot, lexical=index)
+    if args.vector_index is None:
+        raise RetrievalError(f"retrieval mode {args.mode!r} requires --vector-index")
+    sidecar = SQLiteVectorSidecar.open(args.vector_index)
+    try:
+        config_data = sidecar.manifest.get("embedding_config")
+        if not isinstance(config_data, dict):
+            raise RetrievalError("vector sidecar manifest has no embedding_config")
+        embedder = DeterministicTestEmbedder(EmbeddingConfig(**config_data))
+        vector = VectorRetriever(index.snapshot, sidecar, embedder, snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))), chunk_hash=str(index.manifest["chunk_hash"]))
+        return HybridRetriever(index.snapshot, lexical=index, vector=vector)
+    except Exception:
+        sidecar.close()
+        raise
 
 
 def _hit_to_dict(hit: SearchHit) -> dict[str, object]:
