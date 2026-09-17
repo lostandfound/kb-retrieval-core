@@ -336,6 +336,22 @@ metadata and evaluation configuration record the applied graph policy. A
 future query classifier may select this option, but classification remains
 consumer policy until an evaluated domain-independent rule exists.
 
+When expansion is enabled, orchestration retrieves a deterministic seed pool
+larger than the final cutoff (default factor `4`), collapses direct passage
+hits to one representative per entity, and expands those entity seeds. The
+final merge reserves a bounded portion of the cutoff (default half rounded up)
+for graph evidence. It first retains the highest-scoring ordinary relation,
+then distinct Claim paths, then further ordinary relations if capacity remains;
+the rest is filled by entity-deduplicated direct results. Scores remain
+unchanged and determine display order after selection. The seed factor, seed
+count, and graph-result limit are serialized in result metadata.
+
+Within the reserved ordinary-relation candidates, neighbors with the same
+entity type as their seed are selected before cross-type neighbors, then by
+score and stable path order. This structural heuristic favors person-to-person
+and organization-to-organization relationship evidence without interpreting
+domain predicate names or query language.
+
 ### Fusion and reranking
 
 Reciprocal Rank Fusion is the preferred simple baseline because it combines
@@ -813,10 +829,69 @@ reports are derived evaluation artifacts, not knowledge-base source data.
 
 ### Milestone 4: retrieval integration contract
 
-1. Stabilize evidence packet serialization.
-2. Add the `context` command.
-3. Document integration for a separate RAG application.
-4. Consider delegation from `kb` only after this contract is stable.
+Milestone 4 is the remaining package-completion milestone. It freezes a
+reproducible retrieval boundary for a separate RAG application; it does not add
+answer generation.
+
+#### Stable public surface
+
+Supported Python APIs are the names exported from `kb_retrieval_core.__all__`
+and listed in the README. Supported CLI commands are `build`, `vector-build`,
+`search`, `context`, `inspect`, and `eval`, including their JSON success and
+error envelopes. Stable serialized artifacts are lexical/vector manifests,
+search evidence, context packets, and evaluation reports. Private helpers,
+SQLite table layout, and test embedders are not application contracts.
+
+#### Reproducibility contract
+
+An evaluation report must describe the effective run, not only requested
+flags. It records package and artifact versions; snapshot, chunk, case,
+embedding, and vector identities; retrieval mode and final cutoff; effective
+backend cutoffs after seed expansion; complete RRF settings; and the complete
+graph policy. The graph policy includes predicate and Claim filters, decay and
+confidence weights, seed-pool factor and resulting cutoff, entity
+deduplication, graph-result reservation, and structural selection policy. Any
+field that can change candidates, ordering, cutoff membership, provenance, or
+scoring is compatibility-relevant.
+
+#### Compatibility policy
+
+- Additive optional JSON fields may be introduced in a minor release.
+- Removing, renaming, or changing the meaning/default of a public field or
+  rank/cutoff behavior requires a major release or versioned format migration.
+- Unsupported artifact schemas fail explicitly; indexes remain disposable.
+- Default lexical behavior remains offline and deterministic.
+- Consumer-specific query policy and vector admission remain outside the
+  stable core contract.
+
+#### Separate RAG application integration
+
+The RAG application owns user/query state, prompting, LLM calls, answer
+generation, citation presentation, HTTP APIs, authentication, and UI. It opens
+or builds an index, selects an explicit retrieval configuration, calls
+`search`/`context`, enforces Claim hedging and citation policy, and passes only
+assembled evidence to answer generation. This package must not gain those
+application responsibilities.
+
+#### Milestone 4 completion gate
+
+Milestone 4 is complete only when all of the following pass:
+
+1. Effective retrieval/fusion/graph settings round-trip through evaluation JSON
+   and reproduce identical ranks on identical artifacts.
+2. Search, context, inspect, and evaluation JSON have golden compatibility
+   fixtures and explicit migration tests for intentional format changes.
+3. Strict/non-strict provenance is covered through Python and CLI entry points.
+4. A domain-neutral offline test covers build, reopen, search, graph Claim
+   evidence, context, evaluation, and failure diagnostics.
+5. The initial consumer profile covers teacher/student relations, relation and
+   value Claims, enumeration, and known lexical regressions at a fixed cutoff.
+6. Separate-RAG integration documentation uses only the public surface.
+7. The issue ledger has no open completion issue, the suite and
+   `git diff --check` pass, and version metadata identifies running source.
+
+Only after this gate passes may this package be called implementation complete.
+Consumer vector admission and the separate RAG application are later projects.
 
 ## Decisions made for Milestone 1
 

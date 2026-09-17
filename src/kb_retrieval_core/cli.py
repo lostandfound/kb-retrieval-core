@@ -8,13 +8,13 @@ answers or call a model.
 from __future__ import annotations
 
 import argparse
-import importlib.metadata
 import json
 import sys
 from pathlib import Path
 from typing import Any, Sequence
 
 from ._normalization import normalize_json
+from ._version import __version__
 from .chunking import chunk_snapshot, relation_to_dict
 from .context import assemble_context
 from .evaluation import EvaluationReport, evaluate, load_evaluation_cases
@@ -241,7 +241,7 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
             package_identity=_package_identity(),
             embedding_fingerprint=vector_manifest.get("embedding_fingerprint"),
             vector_index_fingerprint=vector_manifest.get("vector_index_fingerprint"),
-            fusion_config=_evaluation_config(args),
+            fusion_config=_evaluation_config(args, retriever),
         )
     return {"command": "eval", **_report_to_dict(report)}
 
@@ -256,28 +256,24 @@ def _retrieval_config(args: argparse.Namespace, top_k: int) -> RetrievalConfig:
     return RetrievalConfig(mode=args.mode, top_k=top_k, graph=graph)
 
 
-def _evaluation_config(args: argparse.Namespace) -> dict[str, object]:
-    config: dict[str, object] = {
-        "mode": args.mode,
-        "top_k": args.k,
-        "graph": {
-            "enabled": args.expand_graph,
-            "predicates": args.graph_predicate,
-            "include_rejected": args.include_rejected_claims,
-            "include_unknown": args.include_unknown_claims,
-        },
-    }
-    if args.mode == "hybrid":
-        config["backend_cutoffs"] = {"lexical.passage": args.k, "lexical.entity": args.k, "vector": args.k}
+def _evaluation_config(args: argparse.Namespace, retriever: HybridRetriever | None = None) -> dict[str, object]:
+    # Serialize the same effective policy passed to every evaluation query.
+    # This is intentionally derived from RetrievalConfig so graph-expanded
+    # seed cutoffs cannot drift from the run itself.
+    config = _retrieval_config(args, args.k).as_dict()
+    graph = config["graph"]
+    if retriever is not None and isinstance(graph, dict):
+        graph_index = retriever.graph
+        graph.update({
+            "decay": graph_index.decay,
+            "claim_decay": graph_index.claim_decay,
+            "confidence_weights": dict(sorted(graph_index.confidence_weights.items())),
+        })
     return config
 
 
 def _package_identity() -> str:
-    try:
-        version = importlib.metadata.version("kb-retrieval-core")
-    except importlib.metadata.PackageNotFoundError:
-        version = "0+unknown"
-    return f"kb-retrieval-core@{version}"
+    return f"kb-retrieval-core@{__version__}"
 
 
 def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetriever:

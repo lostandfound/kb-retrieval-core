@@ -2,13 +2,113 @@
 
 Project: `kb-retrieval-core` architecture completion
 Created: 2026-09-17  
-Canonical requirements: `docs/architecture.md`, “Milestone 3: optional vector
-retrieval”
+Canonical requirements: `docs/architecture.md`, Milestones 3 and 4
 
 These are implementation issues, not yet-created GitHub issue numbers. Each
 issue is intended to fit within one to three working days and must preserve the
 domain-independent, offline lexical baseline. The consumer admission gate is
-deliberately separate from repository implementation acceptance.
+deliberately separate from repository implementation acceptance. Issues
+#1–#9 are the historical Milestone 3 breakdown. The authoritative remaining
+work is the current completion roadmap below.
+
+## Current completion roadmap
+
+```text
+#10 exact evaluation configuration
+  └──> #11 serialization compatibility fixtures
+        ├──> #12 initial-consumer regression profile
+        └──> #13 separate-RAG integration guide
+              └──> #14 stable-release audit
+```
+
+## Issue #10: Serialize the effective retrieval configuration
+
+**Status**: completed in current working tree
+**Priority**: high
+
+Evaluation reports must record the actual configuration consumed by retrieval,
+including graph-expanded candidate cutoffs, rather than reconstructing settings
+independently from CLI flags.
+
+**DoD**:
+
+- [x] Hybrid reports record effective lexical-passage, lexical-entity, and
+      vector cutoffs after seed-pool expansion.
+- [x] Lexical and vector-only reports record their effective candidate cutoff.
+- [x] Graph configuration records seed factor/cutoff, entity deduplication,
+      graph-result limit, Claim/relation reservation, predicate and Claim
+      filters, decay, and confidence weights.
+- [x] CLI report configuration comes from the configuration executed by
+      `HybridRetriever`.
+- [x] Tests fail when an execution-affecting setting is omitted or reports a
+      requested value instead of its effective value.
+
+## Issue #11: Freeze serialized integration contracts
+
+**Status**: planned
+**Priority**: high
+**Dependencies**: Issue #10
+
+**DoD**:
+
+- [ ] Golden JSON covers search, strict/non-strict context, inspect, lexical
+      evaluation, and hybrid evaluation.
+- [ ] Public serialization versions and additive/breaking change rules are
+      documented and tested.
+- [ ] Manifest/schema incompatibility and migration diagnostics run offline.
+- [ ] README public APIs match supported exports and CLI commands.
+
+## Issue #12: Add the initial-consumer regression profile
+
+**Status**: planned
+**Priority**: high
+**Dependencies**: Issues #10 and #11
+
+The consumer owns its KB and thresholds. This package owns the reusable
+evaluation contract, not Okinawa-specific ranking policy.
+
+**DoD**:
+
+- [ ] An external profile fixes snapshot, cases, cutoff, retrieval settings,
+      primary metric, tolerances, and permitted regressions.
+- [ ] Teacher/student, relation-Claim, value-Claim, enumeration, and general
+      regression categories are represented.
+- [ ] q001/q067/q068/q069 or equivalent maintained cases are captured.
+- [ ] Package CI remains domain-neutral and offline without the consumer KB.
+- [ ] Reports remain derived artifacts rather than KB source data.
+
+## Issue #13: Document separate-RAG integration
+
+**Status**: planned
+**Priority**: medium
+**Dependencies**: Issues #10 and #11
+
+**DoD**:
+
+- [ ] A guide covers index/open, retrieval configuration, context assembly,
+      citations, and Claim hedging using only public APIs.
+- [ ] LLM, prompt, answer, chat, API, authentication, and UI responsibilities
+      belong exclusively to the separate RAG application.
+- [ ] An executable consumer contract test imports no private modules or SQLite
+      details.
+- [ ] No LLM dependency or application state enters this package.
+
+## Issue #14: Perform the stable-release audit
+
+**Status**: planned
+**Priority**: high
+**Dependencies**: Issues #10–#13
+
+**DoD**:
+
+- [ ] Every Milestone 4 gate maps to a named package test or identified
+      consumer-owned check.
+- [ ] Supported Python and CLI/JSON contracts have compatibility classification
+      and release notes.
+- [ ] Version identity matches running source and built artifact.
+- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+- [ ] Issue ledger, README status, package classifier, and release version agree
+      before “implementation complete” is stated.
 
 ## Architecture audit follow-up (2026-09-17)
 
@@ -25,7 +125,7 @@ confirmed gaps are tracked here in correction order:
    revise the accepted persistence requirement with measured justification.
 6. [x] Add the `context` CLI command with strict-by-default source resolution.
 7. [x] Decide and implement or explicitly defer vector-sidecar CLI creation.
-8. [x] Reconcile this ledger, README wording, and release status only after the
+8. [ ] Reconcile this ledger, README wording, and release status only after the
    corresponding executable checks pass.
 
 The Claim-path decision is recorded in `docs/architecture.md`: evaluation
@@ -211,13 +311,13 @@ entity identity or passage provenance.
 
 **DoD**:
 
-- [ ] Tests cover several chunks from one entity and duplicate backend hits.
-- [ ] Equal fused scores sort by `entity_path`.
-- [ ] Empty optional inputs and different backend score scales behave
+- [x] Tests cover several chunks from one entity and duplicate backend hits.
+- [x] Equal fused scores sort by `entity_path`.
+- [x] Empty optional inputs and different backend score scales behave
       deterministically.
-- [ ] Entity-only fallback and passage precedence are directly tested.
-- [ ] Selected evidence retains section, chunk ID, text, and source IDs.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] Entity-only fallback and passage precedence are directly tested.
+- [x] Selected evidence retains section, chunk ID, text, and source IDs.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/entity-rrf`  
 **Dependencies**: Issue #1  
@@ -244,12 +344,12 @@ retrieval fully functional and default when vector dependencies are absent.
 
 **DoD**:
 
-- [ ] Existing lexical behavior and rankings remain unchanged by default.
-- [ ] Hybrid mode invokes all configured backends exactly once.
-- [ ] Missing optional vector resources affect only modes that request them.
-- [ ] Fused evidence passes existing context/provenance invariants.
+- [x] Existing lexical behavior and rankings remain unchanged by default.
+- [x] Hybrid mode invokes all configured backends exactly once.
+- [x] Missing optional vector resources affect only modes that request them.
+- [x] Fused evidence passes existing context/provenance invariants.
 - [ ] Retrieval mode and complete fusion configuration are serialized.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/hybrid-retrieval`  
 **Dependencies**: Issues #4 and #5  
@@ -278,15 +378,15 @@ post-hoc threshold changes.
 
 **DoD**:
 
-- [ ] Equivalent evaluation files produce the same canonical case hash.
-- [ ] Missing identity/configuration fields make a report non-reproducible.
-- [ ] Baseline and candidate with different cases, snapshots, or cutoffs cannot
+- [x] Equivalent evaluation files produce the same canonical case hash.
+- [x] Missing identity/configuration fields make a report non-reproducible.
+- [x] Baseline and candidate with different cases, snapshots, or cutoffs cannot
       be compared as an admission pair.
-- [ ] Primary, secondary, lexical-gap, and per-query regression gates have
+- [x] Primary, secondary, lexical-gap, and per-query regression gates have
       independent pass/fail diagnostics.
-- [ ] Existing lexical evaluation output remains source-compatible or has an
+- [x] Existing lexical evaluation output remains source-compatible or has an
       explicit migration test.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/hybrid-evaluation`  
 **Dependencies**: Issue #1; final hybrid report integration depends on Issue #6  
@@ -315,13 +415,13 @@ changing existing lexical command defaults.
 
 **DoD**:
 
-- [ ] Existing lexical CLI tests remain unchanged and pass.
-- [ ] Vector build/search/inspect/eval execute offline with the deterministic
+- [x] Existing lexical CLI tests remain unchanged and pass.
+- [x] Vector build/search/inspect/eval execute offline with the deterministic
       embedder and acceptance fixture.
-- [ ] Every argparse and runtime failure path emits JSON on stderr.
-- [ ] `python -m kb_retrieval_core` and installed console-script paths agree.
-- [ ] Help text labels vector retrieval optional and default-disabled.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] Every argparse and runtime failure path emits JSON on stderr.
+- [x] `python -m kb_retrieval_core` and installed console-script paths agree.
+- [x] Help text labels vector retrieval optional and default-disabled.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/vector-cli`  
 **Dependencies**: Issues #3, #4, #6, and #7  
@@ -351,15 +451,15 @@ Milestone 3 implementation completion auditable.
 
 **DoD**:
 
-- [ ] Every Milestone 3 implementation-acceptance bullet maps to at least one
+- [x] Every Milestone 3 implementation-acceptance bullet maps to at least one
       named executable test.
-- [ ] Canonical vector artifacts and hybrid rankings are byte/rank stable across
+- [x] Canonical vector artifacts and hybrid rankings are byte/rank stable across
       two independent builds.
-- [ ] Passage, relation, and Claim source roles survive the complete path.
-- [ ] Lexical-only import, build, search, and eval remain offline and optional-
+- [x] Passage, relation, and Claim source roles survive the complete path.
+- [x] Lexical-only import, build, search, and eval remain offline and optional-
       dependency-free.
-- [ ] No synthetic result is described as evidence of consumer retrieval value.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] No synthetic result is described as evidence of consumer retrieval value.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `test/milestone-3-acceptance`  
 **Dependencies**: Issues #1 through #8  
@@ -367,12 +467,12 @@ Milestone 3 implementation completion auditable.
 
 ## Completion checklist
 
-- [ ] Every issue remains within a one-to-three-day reviewable scope.
-- [ ] Every behavior change has executable tests.
-- [ ] The lexical baseline works without optional vector dependencies.
-- [ ] No LLM client, prompting, HTTP API, authentication, UI, or consumer-domain
+- [x] Every issue remains within a one-to-three-day reviewable scope.
+- [x] Every behavior change has executable tests.
+- [x] The lexical baseline works without optional vector dependencies.
+- [x] No LLM client, prompting, HTTP API, authentication, UI, or consumer-domain
       policy enters this package.
-- [ ] Every result remains traceable to entity, section, source IDs, and
+- [x] Every result remains traceable to entity, section, source IDs, and
       applicable Claim status/confidence.
-- [ ] Milestone 3 implementation acceptance is complete before any consumer
+- [x] Milestone 3 implementation acceptance is complete before any consumer
       admission claim is made.

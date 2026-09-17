@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 from kb_retrieval_core import Entity, SQLiteIndex, Snapshot
-from kb_retrieval_core.cli import main
+from kb_retrieval_core.cli import _evaluation_config, main
+from kb_retrieval_core import __version__
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "acceptance"
@@ -51,7 +52,7 @@ def test_cli_build_search_inspect_and_eval(tmp_path: Path, capsys) -> None:
     assert evaluated["recall_at_k"] == 1.0
     assert evaluated["mrr"] == 1.0
     assert evaluated["snapshot_hash"] == built["manifest"]["source_hash"]
-    assert evaluated["package_identity"].startswith("kb-retrieval-core@")
+    assert evaluated["package_identity"] == f"kb-retrieval-core@{__version__}"
     assert evaluated["fusion_config"]["graph"]["enabled"] is False
 
     assert main(["eval", "--index", str(index), "--k", "5"]) == 0
@@ -78,6 +79,27 @@ def test_cli_graph_expansion_emits_claim_provenance(tmp_path: Path, capsys) -> N
     assert graph_results
     assert any(item["metadata"]["claim_path"] == "/claims/teaching.md" for item in graph_results)
     assert all(item["metadata"]["graph_expansion"]["enabled"] is True for item in searched["results"])
+
+
+def test_evaluation_config_records_effective_graph_cutoffs() -> None:
+    args = type("Args", (), {
+        "mode": "hybrid",
+        "k": 5,
+        "expand_graph": True,
+        "graph_predicate": ["teaches"],
+        "include_rejected_claims": False,
+        "include_unknown_claims": True,
+    })()
+    config = _evaluation_config(args)
+    assert config["backend_cutoffs"] == {
+        "lexical.entity": 20,
+        "lexical.passage": 20,
+        "vector": 20,
+    }
+    assert config["graph"]["effective_seed_cutoff"] == 20
+    assert config["graph"]["seed_pool_factor"] == 4
+    assert config["graph"]["expanded_result_limit"] == 3
+    assert config["graph"]["seed_deduplication"] == "entity_path:first-ranked"
 
 
 def test_context_cli_is_strict_by_default_and_non_strict_is_explicit(tmp_path: Path, capsys) -> None:
@@ -129,3 +151,10 @@ def test_python_module_entrypoint_runs_offline(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["command"] == "build"
+
+
+def test_runtime_version_is_the_build_metadata_source() -> None:
+    project = (Path(__file__).parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'dynamic = ["version"]' in project
+    assert 'version = {attr = "kb_retrieval_core._version.__version__"}' in project
+    assert __version__ == "0.2.0"

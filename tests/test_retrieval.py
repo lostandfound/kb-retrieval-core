@@ -106,3 +106,49 @@ def test_graph_expansion_preserves_incoming_claim_path():
     expanded = next(hit for hit in hits if hit.evidence.entity_path == "/a.md")
     assert expanded.evidence.metadata["relation"]["direction"] == "incoming"
     assert expanded.evidence.metadata["claim_path"] == "/claims/teaching.md"
+
+
+def test_graph_expansion_deduplicates_chunk_seeds_and_reserves_expanded_result() -> None:
+    snapshot = Snapshot(entities=(
+        Entity(
+            "/a.md", "Person", "Alpha", source_ids=("a",),
+            content="# One\nAlpha first\n# Two\nAlpha second\n# Three\nAlpha third",
+            relations=(Relation("teaches", "/b.md", source_path="/a.md"),),
+        ),
+        Entity("/b.md", "Person", "Teacher", source_ids=("b",), content="# Bio\nTeacher"),
+        Entity("/c.md", "Person", "Alpha unrelated", source_ids=("c",), content="# Bio\nAlpha elsewhere"),
+    ))
+    hits = HybridRetriever(snapshot).search(
+        "Alpha",
+        config=RetrievalConfig(top_k=2, graph=GraphExpansionConfig(enabled=True)),
+    )
+    assert len([hit for hit in hits if hit.evidence.entity_path == "/a.md" and hit.retriever != "graph.one-hop"]) == 1
+    assert any(hit.evidence.entity_path == "/b.md" and hit.retriever == "graph.one-hop" for hit in hits)
+    assert all(hit.evidence.metadata["graph_expansion"]["seed_pool_factor"] == 4 for hit in hits)
+
+
+def test_graph_expansion_pool_and_result_limits_validate() -> None:
+    with pytest.raises(ValueError, match="seed_pool_factor"):
+        GraphExpansionConfig(enabled=True, seed_pool_factor=0)
+    with pytest.raises(ValueError, match="expanded_result_limit"):
+        GraphExpansionConfig(enabled=True, expanded_result_limit=0)
+
+
+def test_graph_reservation_prefers_same_type_relations_without_predicate_policy() -> None:
+    snapshot = Snapshot(entities=(
+        Entity(
+            "/seed.md", "Person", "Seed", content="# Bio\nSeed query",
+            relations=(
+                Relation("related", "/history.md", source_path="/seed.md"),
+                Relation("taught", "/teacher.md", source_path="/seed.md"),
+            ),
+        ),
+        Entity("/history.md", "Event", "History", content="History"),
+        Entity("/teacher.md", "Person", "Teacher", content="Teacher"),
+    ))
+    hits = HybridRetriever(snapshot).search(
+        "Seed query",
+        config=RetrievalConfig(top_k=2, graph=GraphExpansionConfig(enabled=True)),
+    )
+    assert any(hit.evidence.entity_path == "/teacher.md" for hit in hits)
+    assert not any(hit.evidence.entity_path == "/history.md" for hit in hits)

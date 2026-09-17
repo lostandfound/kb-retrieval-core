@@ -91,7 +91,13 @@ vector retrieval は optional かつ default-disabled です。consumer が実�
 - [Architecture implementation direction](docs/architecture.md): package boundary、provenance、実装順序、Milestone 3 acceptance gate
 - [Issue breakdown](docs/ISSUES.md): 実装単位と完了条件
 
-リリース前には `PYTHONPATH=src python3 -m pytest`、`git diff --check`、CLI の acceptance fixture、consumer-owned admission profile を実行してください。合格した consumer だけが vector/hybrid を既定有効化できます。
+現在はMilestone 4（retrieval integration contract）の完了前です。検索機能は
+利用できますが、別RAGアプリ向けの公開serialization契約、実効検索設定の完全な
+再現性、consumer regression profile、安定版監査が残っています。
+
+安定版リリース前には `docs/architecture.md` のMilestone 4 completion gateと
+`docs/ISSUES.md` のIssue #10〜#14をすべて満たす必要があります。consumer-owned
+admission profileに合格したconsumerだけがvector/hybridを既定有効化できます。
 
 ## License
 

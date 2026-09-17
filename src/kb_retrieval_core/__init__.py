@@ -1,5 +1,7 @@
 """Domain-independent retrieval primitives for knowledge bases."""
 
+from ._version import __version__
+
 from .models import Claim, Chunk, Entity, Evidence, Reference, Relation, SearchHit, Snapshot
 from .snapshot import SnapshotLoadError, load, load_snapshot, normalize_json, normalize_source_id
 from .chunking import (
@@ -80,5 +82,3 @@ __all__ = [
     "FusionError", "RRFConfig", "fuse_entity_rankings",
     "GraphExpansionConfig", "HybridRetriever", "RetrievalConfig", "RetrievalError", "build_retriever",
 ]
-
-__version__ = "0.1.0"
