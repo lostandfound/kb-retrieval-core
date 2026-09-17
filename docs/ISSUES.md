@@ -60,7 +60,7 @@ independently from CLI flags.
 
 ## Issue #12: Add the initial-consumer regression profile
 
-**Status**: planned
+**Status**: in progress (consumer profile added in `okinawa-karate-book@96bb55f`)
 **Priority**: high
 **Dependencies**: Issues #10 and #11
 
