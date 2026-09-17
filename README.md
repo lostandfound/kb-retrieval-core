@@ -55,6 +55,27 @@ python3 -m pip install -e '.[test]'
 python3 -m pytest
 ```
 
+## CLI
+
+The package provides an offline `kb-retrieval` command (also available as
+`python3 -m kb_retrieval_core`). Build a disposable SQLite index from a KB
+snapshot, then search or inspect it:
+
+```bash
+kb-retrieval build \
+  --content-root tests/fixtures/acceptance/content \
+  --graph tests/fixtures/acceptance/graph.json \
+  --references tests/fixtures/acceptance/references.yml \
+  --eval tests/fixtures/acceptance/evals/rag-eval.yml \
+  --index .retrieval
+kb-retrieval search "Source Person teaches Target Person" --index .retrieval
+kb-retrieval inspect /entities/source.md --index .retrieval
+kb-retrieval eval --index .retrieval
+```
+
+All commands emit JSON and run without an LLM, network access, or a separate
+database service.
+
 ## License
 
 MIT

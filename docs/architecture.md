@@ -650,6 +650,28 @@ Acceptance criteria:
 4. Rebuild safely when source or format hashes change.
 5. Add `build`, `search`, `inspect`, and `eval` CLI commands.
 
+Milestone 2 is accepted only when executable offline tests verify all of the
+following:
+
+- the manifest and SQLite database carry explicit format and schema versions,
+  and opening an unsupported or mutually inconsistent version fails with an
+  actionable error;
+- entity, deterministic chunk, relation, both Claim forms, reference, and
+  provenance fields survive a build/open round trip after canonical JSON
+  normalization;
+- reopened SQLite indexes return the same deterministic lexical results as the
+  freshly built index, including a Japanese query that does not rely on word
+  boundaries or whitespace;
+- identical source inputs produce identical manifests, while a source-content
+  or chunk-hash change is detected by `needs_rebuild`;
+- rebuilding replaces stale derived rows, and a failure before replacement
+  leaves the previously completed database readable;
+- the sidecar manifest is reproducible from the manifest stored in SQLite;
+  disagreement between them is rejected rather than silently selecting one;
+- `build`, `search`, `inspect`, and `eval` each run against the acceptance
+  fixture, emit JSON, require no network or LLM, and return a non-zero status
+  with a JSON diagnostic for invalid input.
+
 ### Milestone 3: optional vector retrieval
 
 1. Define embedding and vector-store protocols.
