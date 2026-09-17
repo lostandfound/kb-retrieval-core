@@ -139,7 +139,42 @@ def _select_evidence(path: str, candidates: Mapping[str, SearchHit], config: RRF
         fallback = _snapshot_fallback(snapshot, path)
         if fallback is not None:
             return fallback
-    return chosen.evidence
+    evidences = [candidate.evidence for _, candidate in ordered]
+    return _merge_evidence(chosen.evidence, evidences)
+
+
+def _merge_evidence(chosen: Evidence, evidences: Sequence[Evidence]) -> Evidence:
+    """Keep the selected passage while unioning assertion provenance."""
+    metadata = dict(chosen.metadata)
+    relation_ids = []
+    claim_ids = []
+    assertions = []
+    for evidence in evidences:
+        value = evidence.metadata.get("relation_source_ids", ())
+        relation_ids.extend(value if isinstance(value, (tuple, list)) else ())
+        value = evidence.metadata.get("claim_source_ids", ())
+        claim_ids.extend(value if isinstance(value, (tuple, list)) else ())
+        value = evidence.metadata.get("assertions", ())
+        if isinstance(value, (tuple, list)):
+            assertions.extend(value)
+        for key in ("claim_status", "confidence", "claim_id", "claim_path", "property", "value", "relation"):
+            if metadata.get(key) is None and evidence.metadata.get(key) is not None:
+                metadata[key] = evidence.metadata[key]
+        if evidence.metadata.get("requires_hedging"):
+            metadata["requires_hedging"] = True
+    if relation_ids or claim_ids:
+        metadata["relation_source_ids"] = tuple(dict.fromkeys(relation_ids + claim_ids))
+        metadata["claim_source_ids"] = tuple(dict.fromkeys(claim_ids))
+    if assertions:
+        metadata["assertions"] = tuple(assertions)
+    return Evidence(
+        entity_path=chosen.entity_path,
+        section=chosen.section,
+        text=chosen.text,
+        source_ids=chosen.source_ids,
+        passage_source_ids=chosen.passage_source_ids,
+        metadata=metadata,
+    )
 
 
 def _snapshot_fallback(snapshot: Snapshot, path: str) -> Evidence | None:

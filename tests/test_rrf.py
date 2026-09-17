@@ -59,3 +59,19 @@ def test_rrf_records_complete_fusion_configuration() -> None:
     assert fusion["passage_precedence"] == ("vector", "lexical")
     assert fusion["backend_ranks"] == {"vector": 1}
     assert fusion["entity_path"] == "/a.md"
+
+
+def test_rrf_merges_assertion_provenance_from_non_selected_passage() -> None:
+    lexical = SearchHit(
+        Evidence("/a.md", "lexical", "Section", ("passage",), {"chunk_id": "/a.md#one"}, ("passage",)),
+        1.0, 1, "lexical.passage",
+    )
+    vector = SearchHit(
+        Evidence("/a.md", "vector", "Section", ("passage",), {"chunk_id": "/a.md#two", "relation_source_ids": ("relation",), "claim_status": "proposed", "claim_path": "/claims/c.md"}, ("passage",)),
+        1.0, 1, "vector",
+    )
+    result = fuse_entity_rankings({"lexical.passage": (lexical,), "vector": (vector,)})
+    metadata = result[0].evidence.metadata
+    assert metadata["relation_source_ids"] == ("relation",)
+    assert metadata["claim_status"] == "proposed"
+    assert metadata["claim_path"] == "/claims/c.md"

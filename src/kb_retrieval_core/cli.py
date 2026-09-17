@@ -152,7 +152,17 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
             raise ValueError("evaluation path is required (pass --eval-path or build with --eval-path)")
         cases = load_evaluation_cases(eval_path)
         retriever = _cli_retriever(index, args)
-        report = evaluate(cases, lambda query, top_k=args.k: retriever.search(query, config=RetrievalConfig(mode=args.mode, top_k=top_k)), k=args.k, retrieval_mode=args.mode)
+        vector_manifest = getattr(retriever, "vector_manifest", {})
+        report = evaluate(
+            cases,
+            lambda query, top_k=args.k: retriever.search(query, config=RetrievalConfig(mode=args.mode, top_k=top_k)),
+            k=args.k,
+            retrieval_mode=args.mode,
+            snapshot_hash=str(index.manifest.get("source_hash")) if args.mode != "lexical" else None,
+            embedding_fingerprint=vector_manifest.get("embedding_fingerprint"),
+            vector_index_fingerprint=vector_manifest.get("vector_index_fingerprint"),
+            fusion_config={"mode": args.mode, "backend_cutoffs": {"lexical.passage": args.k, "lexical.entity": args.k, "vector": args.k}} if args.mode == "hybrid" else {},
+        )
     return {"command": "eval", **_report_to_dict(report)}
 
 
@@ -168,7 +178,9 @@ def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetrie
             raise RetrievalError("vector sidecar manifest has no embedding_config")
         embedder = DeterministicTestEmbedder(EmbeddingConfig(**config_data))
         vector = VectorRetriever(index.snapshot, sidecar, embedder, snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))), chunk_hash=str(index.manifest["chunk_hash"]))
-        return HybridRetriever(index.snapshot, lexical=index, vector=vector)
+        retriever = HybridRetriever(index.snapshot, lexical=index, vector=vector)
+        retriever.vector_manifest = dict(sidecar.manifest)
+        return retriever
     except Exception:
         sidecar.close()
         raise
