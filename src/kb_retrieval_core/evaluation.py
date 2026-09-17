@@ -209,6 +209,89 @@ class EvaluationReport:
         return self.by_kind
 
 
+@dataclass(frozen=True, slots=True)
+class EvaluationProfile:
+    """Consumer-owned admission thresholds for comparing retrieval reports."""
+
+    name: str
+    primary_metric: str = "recall_at_k"
+    minimum_improvement: float = 0.0
+    maximum_mrr_regression: float = 0.0
+    maximum_per_query_regressions: int = 0
+    require_reproducible_metadata: bool = True
+    require_lexical_gap_success: bool = True
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.name, str) or not self.name.strip():
+            raise ValueError("profile name must be non-empty")
+        if self.primary_metric not in {"recall_at_k", "reciprocal_rank"}:
+            raise ValueError("primary_metric must be recall_at_k or reciprocal_rank")
+        for field_name in ("minimum_improvement", "maximum_mrr_regression"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or value < 0:
+                raise ValueError(f"{field_name} must be a finite non-negative number")
+        if isinstance(self.maximum_per_query_regressions, bool) or not isinstance(self.maximum_per_query_regressions, int) or self.maximum_per_query_regressions < 0:
+            raise ValueError("maximum_per_query_regressions must be a non-negative integer")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationComparison:
+    baseline: EvaluationReport
+    candidate: EvaluationReport
+    profile: EvaluationProfile
+    admitted: bool
+    diagnostics: tuple[str, ...]
+    primary_improvement: float
+    mrr_delta: float
+    per_query_regressions: int
+
+
+def compare_evaluations(baseline: EvaluationReport, candidate: EvaluationReport, profile: EvaluationProfile) -> EvaluationComparison:
+    if not isinstance(baseline, EvaluationReport) or not isinstance(candidate, EvaluationReport):
+        raise TypeError("baseline and candidate must be EvaluationReport objects")
+    if not isinstance(profile, EvaluationProfile):
+        raise TypeError("profile must be an EvaluationProfile")
+    diagnostics: list[str] = []
+    if baseline.k != candidate.k:
+        diagnostics.append("cutoff k differs")
+    if baseline.evaluation_case_hash != candidate.evaluation_case_hash:
+        diagnostics.append("evaluation case hash differs")
+    if baseline.snapshot_hash != candidate.snapshot_hash:
+        diagnostics.append("snapshot hash differs")
+    if profile.require_reproducible_metadata:
+        for label, report in (("baseline", baseline), ("candidate", candidate)):
+            if not report.evaluation_case_hash or not report.snapshot_hash or not report.retrieval_mode or not report.package_identity:
+                diagnostics.append(f"{label} report lacks reproducibility metadata")
+        if not candidate.embedding_fingerprint or not candidate.vector_index_fingerprint:
+            diagnostics.append("candidate report lacks embedding/vector fingerprints")
+        if candidate.retrieval_mode in {"vector", "hybrid"} and not candidate.fusion_config:
+            diagnostics.append("candidate report lacks fusion configuration")
+    baseline_primary = getattr(baseline, profile.primary_metric)
+    candidate_primary = getattr(candidate, profile.primary_metric)
+    improvement = float(candidate_primary - baseline_primary)
+    mrr_delta = float(candidate.mrr - baseline.mrr)
+    regressions = sum(
+        candidate_result.recall_at_k < baseline_result.recall_at_k
+        for baseline_result, candidate_result in zip(baseline.results, candidate.results)
+    )
+    if improvement < profile.minimum_improvement:
+        diagnostics.append(f"primary improvement {improvement:.6g} below minimum {profile.minimum_improvement:.6g}")
+    if mrr_delta < -profile.maximum_mrr_regression:
+        diagnostics.append("MRR regression exceeds tolerance")
+    if regressions > profile.maximum_per_query_regressions:
+        diagnostics.append("per-query regressions exceed tolerance")
+    if profile.require_lexical_gap_success:
+        gap_improvements = any(
+            baseline_result.case.gap is not None
+            and not baseline_result.success
+            and candidate_result.success
+            for baseline_result, candidate_result in zip(baseline.results, candidate.results)
+        )
+        if not gap_improvements:
+            diagnostics.append("candidate does not improve any lexical-gap case")
+    return EvaluationComparison(baseline, candidate, profile, not diagnostics, tuple(diagnostics), improvement, mrr_delta, regressions)
+
+
 def load_evaluation_cases(path: str | Path) -> tuple[EvaluationCase, ...]:
     path = Path(path)
     if not path.exists():
@@ -355,4 +438,4 @@ def _call_retriever(retriever: Callable[..., Iterable[SearchHit]], query: str, k
     return retriever(query)
 
 
-__all__ = ["EvaluationAggregate", "EvaluationCase", "EvaluationError", "EvaluationLoadError", "EvaluationReport", "EvaluationResult", "RetrievedResult", "evaluate", "load_evaluation_cases"]
+__all__ = ["EvaluationAggregate", "EvaluationCase", "EvaluationComparison", "EvaluationError", "EvaluationLoadError", "EvaluationProfile", "EvaluationReport", "EvaluationResult", "RetrievedResult", "compare_evaluations", "evaluate", "load_evaluation_cases"]
