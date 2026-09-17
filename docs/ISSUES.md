@@ -45,7 +45,7 @@ independently from CLI flags.
 
 ## Issue #11: Freeze serialized integration contracts
 
-**Status**: in progress
+**Status**: completed in current working tree
 **Priority**: high
 **Dependencies**: Issue #10
 
@@ -55,8 +55,8 @@ independently from CLI flags.
       evaluation, and hybrid evaluation.
 - [x] Public serialization versions and additive/breaking change rules are
       documented and tested.
-- [ ] Manifest/schema incompatibility and migration diagnostics run offline.
-- [ ] README public APIs match supported exports and CLI commands.
+- [x] Manifest/schema incompatibility and migration diagnostics run offline.
+- [x] README public APIs match supported exports and CLI commands.
 
 ## Issue #12: Add the initial-consumer regression profile
 

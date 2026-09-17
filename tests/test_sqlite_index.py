@@ -180,6 +180,21 @@ def test_open_rejects_schema_version_and_manifest_mismatch(tmp_path: Path) -> No
         SQLiteIndex.open(path)
 
 
+def test_open_rejects_unsupported_manifest_format_version(tmp_path: Path) -> None:
+    path = tmp_path / ".retrieval"
+    index = SQLiteIndex.build(_snapshot(), path)
+    index.close()
+    manifest_path = path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = 999
+    serialized = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    manifest_path.write_text(serialized, encoding="utf-8")
+    with sqlite3.connect(path / "index.sqlite") as connection:
+        connection.execute("UPDATE meta SET value = ? WHERE key = 'manifest'", (serialized,))
+    with pytest.raises(SQLiteIndexError, match="unsupported SQLite index format version"):
+        SQLiteIndex.open(path)
+
+
 def test_open_without_sidecar_uses_versioned_manifest_in_database(tmp_path: Path) -> None:
     path = tmp_path / ".retrieval"
     index = SQLiteIndex.build(_snapshot(), path)

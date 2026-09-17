@@ -47,7 +47,7 @@ kb-retrieval inspect /entities/source.md --index .retrieval
 kb-retrieval eval --index .retrieval --mode lexical
 ```
 
-すべての出力は JSON です。構文エラー、入力エラー、未構成の vector resource は stderr に JSON 診断を出し、非ゼロ終了します。
+すべての出力は `schema_version: 1` を含む JSON です。構文エラー、入力エラー、未構成の vector resource は stderr に同じ schema version の JSON 診断を出し、非ゼロ終了します。
 
 vector / hybrid mode は、あらかじめ作成した SQLite vector sidecar を `--vector-index` で指定します。sidecar の manifest に保存された embedding configuration と lexical index の hash が検証されます。
 

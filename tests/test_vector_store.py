@@ -167,6 +167,23 @@ def test_vector_sidecar_rejects_manifest_configuration_fingerprint_conflict(
         SQLiteVectorSidecar.open(path)
 
 
+def test_vector_sidecar_rejects_unsupported_manifest_format_version(tmp_path: Path) -> None:
+    path = tmp_path / "unsupported"
+    sidecar = SQLiteVectorSidecar.build(
+        _records(), path, config=_config(), snapshot_hash=HASH_A, chunk_hash=HASH_B
+    )
+    sidecar.close()
+    manifest_path = path / "vector-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = 999
+    serialized = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    manifest_path.write_text(serialized, encoding="utf-8")
+    with sqlite3.connect(path / "vector.sqlite") as connection:
+        connection.execute("UPDATE meta SET value = ? WHERE key = 'manifest'", (serialized,))
+    with pytest.raises(VectorSidecarError, match="999"):
+        SQLiteVectorSidecar.open(path)
+
+
 def test_failed_build_and_manifest_commit_preserve_previous_sidecar(
     tmp_path: Path, monkeypatch
 ) -> None:
