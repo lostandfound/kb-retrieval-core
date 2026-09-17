@@ -14,6 +14,19 @@ from .chunking import (
     chunk_to_dict,
 )
 from .lexical import LexicalIndex, build_lexical_index, character_ngrams, normalize_text
+from .embeddings import (
+    Embedder,
+    EmbeddedDocument,
+    EmbeddingConfig,
+    EmbeddingDocument,
+    VectorIndexConfig,
+    embedding_config_to_dict,
+    embedding_fingerprint,
+    validate_document_embeddings,
+    validate_query_embedding,
+    vector_index_config_to_dict,
+    vector_index_fingerprint,
+)
 from .graph_search import CONFIDENCE_WEIGHTS, GraphIndex, GraphSearcher, build_graph_index
 from .context import ContextAssemblyError, ContextReference, ContextReport, EvidencePacket, assemble_context, assemble_evidence, build_context
 from .evaluation import EvaluationAggregate, EvaluationCase, EvaluationError, EvaluationLoadError, EvaluationReport, EvaluationResult, RetrievedResult, evaluate, load_evaluation_cases
@@ -33,6 +46,9 @@ __all__ = [
     "chunk_entity", "chunk_snapshot", "chunks_for_snapshot", "chunk_to_dict",
     "canonical_chunk_jsonl", "canonical_chunk_bytes", "canonical_chunk_hash", "chunk_jsonl_bytes", "chunks_hash",
     "LexicalIndex", "build_lexical_index", "character_ngrams", "normalize_text",
+    "Embedder", "EmbeddedDocument", "EmbeddingConfig", "EmbeddingDocument", "VectorIndexConfig",
+    "embedding_config_to_dict", "embedding_fingerprint", "validate_document_embeddings",
+    "validate_query_embedding", "vector_index_config_to_dict", "vector_index_fingerprint",
     "CONFIDENCE_WEIGHTS", "GraphIndex", "GraphSearcher", "build_graph_index",
     "ContextAssemblyError", "ContextReference", "ContextReport", "EvidencePacket", "assemble_context", "assemble_evidence", "build_context",
     "EvaluationAggregate", "EvaluationCase", "EvaluationError", "EvaluationLoadError", "EvaluationReport", "EvaluationResult", "RetrievedResult", "evaluate", "load_evaluation_cases",
