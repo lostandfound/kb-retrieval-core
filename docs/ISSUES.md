@@ -79,19 +79,19 @@ evaluation contract, not Okinawa-specific ranking policy.
 
 ## Issue #13: Document separate-RAG integration
 
-**Status**: planned
+**Status**: in progress
 **Priority**: medium
 **Dependencies**: Issues #10 and #11
 
 **DoD**:
 
-- [ ] A guide covers index/open, retrieval configuration, context assembly,
+- [x] A guide covers index/open, retrieval configuration, context assembly,
       citations, and Claim hedging using only public APIs.
-- [ ] LLM, prompt, answer, chat, API, authentication, and UI responsibilities
+- [x] LLM, prompt, answer, chat, API, authentication, and UI responsibilities
       belong exclusively to the separate RAG application.
-- [ ] An executable consumer contract test imports no private modules or SQLite
+- [x] An executable consumer contract test imports no private modules or SQLite
       details.
-- [ ] No LLM dependency or application state enters this package.
+- [x] No LLM dependency or application state enters this package.
 
 ## Issue #14: Perform the stable-release audit
 
