@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import inspect
+import hashlib
+import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -10,6 +12,7 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable, Mapping, Protocol
 
 from .models import SearchHit
+from ._normalization import normalize_json
 
 try:
     import yaml
@@ -165,6 +168,13 @@ class EvaluationReport:
     recall_at_k: float
     reciprocal_rank: float
     by_kind: Mapping[str, EvaluationAggregate] = field(default_factory=dict)
+    retrieval_mode: str | None = None
+    snapshot_hash: str | None = None
+    evaluation_case_hash: str | None = None
+    package_identity: str | None = None
+    embedding_fingerprint: str | None = None
+    vector_index_fingerprint: str | None = None
+    fusion_config: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if isinstance(self.k, bool) or not isinstance(self.k, int) or self.k < 1:
@@ -176,6 +186,15 @@ class EvaluationReport:
             raise ValueError("aggregate metrics must be between 0 and 1")
         object.__setattr__(self, "results", results)
         object.__setattr__(self, "by_kind", MappingProxyType(dict(sorted(self.by_kind.items()))))
+        if self.retrieval_mode is not None and (not isinstance(self.retrieval_mode, str) or not self.retrieval_mode.strip()):
+            raise ValueError("retrieval_mode must be a non-empty string or None")
+        for name in ("snapshot_hash", "evaluation_case_hash", "package_identity", "embedding_fingerprint", "vector_index_fingerprint"):
+            value = getattr(self, name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{name} must be a non-empty string or None")
+        if not isinstance(self.fusion_config, Mapping):
+            raise TypeError("fusion_config must be a mapping")
+        object.__setattr__(self, "fusion_config", MappingProxyType(dict(self.fusion_config)))
 
     @property
     def mrr(self) -> float:
@@ -255,7 +274,18 @@ def _alias(record: Mapping[str, object], names: tuple[str, ...], path: Path, ind
     return record[present[0]]
 
 
-def evaluate(cases: Iterable[EvaluationCase], retriever: Callable[..., Iterable[SearchHit]], *, k: int = 5) -> EvaluationReport:
+def evaluate(
+    cases: Iterable[EvaluationCase],
+    retriever: Callable[..., Iterable[SearchHit]],
+    *,
+    k: int = 5,
+    retrieval_mode: str | None = None,
+    snapshot_hash: str | None = None,
+    package_identity: str | None = None,
+    embedding_fingerprint: str | None = None,
+    vector_index_fingerprint: str | None = None,
+    fusion_config: Mapping[str, object] | None = None,
+) -> EvaluationReport:
     if isinstance(k, bool) or not isinstance(k, int) or k < 1:
         raise ValueError("k must be a positive integer")
     cases = tuple(cases)
@@ -288,7 +318,29 @@ def evaluate(cases: Iterable[EvaluationCase], retriever: Callable[..., Iterable[
             groups.setdefault(result.case.kind, []).append(result)
     for kind, grouped in groups.items():
         by_kind[kind] = EvaluationAggregate(len(grouped), sum(item.recall_at_k for item in grouped) / len(grouped), sum(item.reciprocal_rank for item in grouped) / len(grouped), sum(item.success for item in grouped))
-    return EvaluationReport(k, tuple(results), recall, mrr, by_kind)
+    case_hash = _evaluation_case_hash(cases)
+    return EvaluationReport(
+        k, tuple(results), recall, mrr, by_kind,
+        retrieval_mode, snapshot_hash, case_hash, package_identity,
+        embedding_fingerprint, vector_index_fingerprint, fusion_config or {},
+    )
+
+
+def _evaluation_case_hash(cases: Iterable[EvaluationCase]) -> str:
+    payload = []
+    for case in cases:
+        payload.append({
+            "id": case.case_id,
+            "query": case.query,
+            "expected_paths": list(case.expected_paths),
+            "kind": case.kind,
+            "expected": case.expected,
+            "history": list(case.history),
+            "gap": case.gap,
+            "metadata": dict(case.metadata),
+        })
+    canonical = json.dumps(normalize_json(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _call_retriever(retriever: Callable[..., Iterable[SearchHit]], query: str, k: int) -> Iterable[SearchHit]:

@@ -208,6 +208,13 @@ def _claim_to_dict(claim: Claim) -> dict[str, object]:
 def _report_to_dict(report: EvaluationReport) -> dict[str, object]:
     return {
         "k": report.k,
+        "retrieval_mode": report.retrieval_mode,
+        "snapshot_hash": report.snapshot_hash,
+        "evaluation_case_hash": report.evaluation_case_hash,
+        "package_identity": report.package_identity,
+        "embedding_fingerprint": report.embedding_fingerprint,
+        "vector_index_fingerprint": report.vector_index_fingerprint,
+        "fusion_config": _json_value(report.fusion_config),
         "recall_at_k": report.recall_at_k,
         "mrr": report.mrr,
         "successes": sum(result.success for result in report.results),

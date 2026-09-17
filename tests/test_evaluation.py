@@ -74,6 +74,7 @@ def test_evaluation_expected_must_be_non_empty_string_and_evidence_is_stably_ded
     assert report.results[0].missing_paths == ("/b.md",)
     assert report.results[0].success is False
 
+
     for expected in ("", "   ", 42, False):
         invalid = tmp_path / f"invalid-{repr(expected)}.yml"
         invalid.write_text(f"- id: q\n  query: one\n  expected: {expected!r}\n  evidence: [/a.md]\n", encoding="utf-8")
@@ -102,3 +103,21 @@ def test_evaluate_errors_are_actionable() -> None:
         evaluate((case,), lambda query: (object(),))
     with pytest.raises(EvaluationError, match="retriever failed"):
         evaluate((case,), lambda query: (_ for _ in ()).throw(RuntimeError("boom")))
+
+
+def test_evaluation_report_records_reproducibility_metadata() -> None:
+    cases = (EvaluationCase("query", ("/a.md",), "case-a", kind="entity", expected="answer"),)
+    retriever = lambda query, top_k=5: (_hit("/a.md", 1),)
+    report = evaluate(
+        cases, retriever, k=5, retrieval_mode="hybrid", snapshot_hash="s" * 64,
+        package_identity="commit:abc", embedding_fingerprint="e" * 64,
+        vector_index_fingerprint="v" * 64,
+        fusion_config={"constant": 60.0, "backend_cutoffs": {"vector": 5}},
+    )
+    assert report.retrieval_mode == "hybrid"
+    assert report.snapshot_hash == "s" * 64
+    assert len(report.evaluation_case_hash) == 64
+    assert report.package_identity == "commit:abc"
+    assert report.fusion_config["backend_cutoffs"] == {"vector": 5}
+    again = evaluate(cases, retriever, k=5)
+    assert again.evaluation_case_hash == report.evaluation_case_hash
