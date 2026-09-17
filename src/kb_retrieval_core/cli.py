@@ -25,7 +25,8 @@ from .retrieval import RetrievalError
 from .embeddings import DeterministicTestEmbedder, EmbeddingConfig, EmbeddingDocument, VectorIndexConfig
 from .vector_store import SQLiteVectorSidecar, VectorRecord
 from .vector_retrieval import VectorRetriever
-from .retrieval import GraphExpansionConfig, HybridRetriever, RetrievalConfig
+from .retrieval import GraphExpansionConfig, HybridRetriever, RetrievalConfig, effective_backend_cutoffs
+from .rrf import RRFConfig
 
 
 class _ArgumentError(ValueError):
@@ -253,7 +254,18 @@ def _retrieval_config(args: argparse.Namespace, top_k: int) -> RetrievalConfig:
         include_rejected=args.include_rejected_claims,
         include_unknown=args.include_unknown_claims,
     )
-    return RetrievalConfig(mode=args.mode, top_k=top_k, graph=graph)
+    config = RetrievalConfig(mode=args.mode, top_k=top_k, graph=graph)
+    if args.mode == "hybrid":
+        # HybridRetriever applies these defaults when rrf is omitted. Store
+        # the same effective object so evaluation metadata is reproducible.
+        config = RetrievalConfig(
+            mode=config.mode,
+            top_k=config.top_k,
+            backend_cutoffs=config.backend_cutoffs,
+            rrf=RRFConfig(backend_cutoffs=effective_backend_cutoffs(config)),
+            graph=config.graph,
+        )
+    return config
 
 
 def _evaluation_config(args: argparse.Namespace, retriever: HybridRetriever | None = None) -> dict[str, object]:

@@ -100,6 +100,16 @@ def test_evaluation_config_records_effective_graph_cutoffs() -> None:
     assert config["graph"]["seed_pool_factor"] == 4
     assert config["graph"]["expanded_result_limit"] == 3
     assert config["graph"]["seed_deduplication"] == "entity_path:first-ranked"
+    assert config["rrf"] == {
+        "constant": 60.0,
+        "backend_weights": {},
+        "backend_cutoffs": {
+            "lexical.entity": 20,
+            "lexical.passage": 20,
+            "vector": 20,
+        },
+        "passage_precedence": [],
+    }
 
 
 def test_context_cli_is_strict_by_default_and_non_strict_is_explicit(tmp_path: Path, capsys) -> None:
