@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from ._normalization import normalize_json, normalize_source_id as _normalize_source_id
 from .models import Claim, Entity, Reference, Relation, Snapshot
 
 try:
@@ -20,6 +20,12 @@ else:
 
 class SnapshotLoadError(ValueError):
     """Raised when source input is missing or invalid."""
+
+
+def normalize_source_id(value: str) -> str:
+    """Return a trimmed bare source ID using the stable public signature."""
+
+    return _normalize_source_id(value)
 
 
 def load_snapshot(content_root: str | Path, graph_path: str | Path, references_path: str | Path, eval_path: str | Path | None = None) -> Snapshot:
@@ -458,17 +464,6 @@ def _load_references(path: Path) -> tuple[Reference, ...]:
     return tuple(result)
 
 
-def normalize_source_id(value: str) -> str:
-    if not isinstance(value, str):
-        raise TypeError("source ID must be a string")
-    result = value.strip()
-    if result.casefold().startswith("ref:"):
-        result = result[4:].strip()
-    if not result:
-        raise ValueError("source ID must not be empty")
-    return result
-
-
 def _source_list(value: Any, path: Path, field_name: str) -> tuple[str, ...]:
     if value is None:
         return ()
@@ -531,33 +526,6 @@ def _string_value(mapping: Mapping[str, Any], aliases: tuple[str, ...], path: Pa
     if not isinstance(value, str) or not value.strip():
         raise SnapshotLoadError(f"{path}: {context} field {aliases[0]!r} must be a non-empty string")
     return value
-
-
-def normalize_json(value: object) -> object:
-    if isinstance(value, datetime):
-        if value.tzinfo is not None and value.utcoffset() is not None and value.utcoffset().total_seconds() == 0:
-            return value.isoformat().replace("+00:00", "Z")
-        return value.isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if isinstance(value, Mapping):
-        if any(not isinstance(key, str) for key in value):
-            raise TypeError("JSON mapping keys must be strings")
-        return {key: normalize_json(item) for key, item in sorted(value.items())}
-    if isinstance(value, (list, tuple)):
-        return [normalize_json(item) for item in value]
-    if isinstance(value, (set, frozenset)):
-        values = [normalize_json(item) for item in value]
-        return sorted(values, key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    if value is None or isinstance(value, (str, bool, int)):
-        return value
-    if isinstance(value, float):
-        if value != value or value in (float("inf"), float("-inf")):
-            raise ValueError("non-finite number is not JSON-compatible")
-        return value
-    raise TypeError(f"unsupported JSON value: {type(value).__name__}")
 
 
 load = load_snapshot

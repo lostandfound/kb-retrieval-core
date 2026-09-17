@@ -200,5 +200,6 @@ def test_unsupported_or_nonfinite_metadata_fails(metadata: dict[str, object]) ->
         rank=1,
         retriever="test",
     )
-    with pytest.raises(ContextAssemblyError):
+    with pytest.raises(ContextAssemblyError) as error:
         assemble_context((hit,), Snapshot())
+    assert "unsupported metadata value object" in str(error.value) or "non-finite number" in str(error.value)

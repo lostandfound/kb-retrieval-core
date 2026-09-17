@@ -23,6 +23,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Iterable
 
+from ._normalization import normalize_source_id
 from .chunking import chunk_snapshot
 from .models import Chunk, Entity, Evidence, SearchHit, Snapshot
 
@@ -50,11 +51,6 @@ def normalize_text(value: str) -> str:
 
     normalized = unicodedata.normalize("NFKC", value).casefold()
     return "".join(character for character in normalized if not character.isspace())
-
-
-def _normalize_source_id(value: str) -> str:
-    value = value.strip()
-    return value[4:].strip() if value.casefold().startswith("ref:") else value
 
 
 def character_ngrams(value: str, ngram_size: int = DEFAULT_NGRAM_SIZE) -> frozenset[str]:
@@ -135,7 +131,7 @@ class LexicalIndex:
             evidence = Evidence(
                 entity_path=entity.entity_path,
                 text=(entity.content.strip() or entity.description or entity.title),
- source_ids=tuple(_normalize_source_id(value) for value in entity.source_ids),
+                    source_ids=tuple(normalize_source_id(value, allow_empty=True) for value in entity.source_ids),
                 metadata={
                     "result_type": "entity",
                     "entity_path": entity.entity_path,
@@ -173,7 +169,7 @@ class LexicalIndex:
                 entity_path=chunk.entity_path,
                 section=chunk.heading,
                 text=chunk.text,
- source_ids=tuple(_normalize_source_id(value) for value in chunk.source_ids),
+                    source_ids=tuple(normalize_source_id(value, allow_empty=True) for value in chunk.source_ids),
                 metadata={
                     "result_type": "chunk",
                     "chunk_id": chunk.chunk_id,

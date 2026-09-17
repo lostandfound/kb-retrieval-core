@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from types import MappingProxyType
 
 import pytest
 
@@ -171,3 +172,24 @@ def test_canonical_chunks_reject_duplicate_entity_ordinals() -> None:
     )
     with pytest.raises(ValueError, match="duplicate chunk ordinal"):
         canonical_chunk_bytes((*chunks, duplicate))
+
+
+def test_canonical_chunk_bytes_supports_immutable_mapping_metadata() -> None:
+    chunk = Chunk(
+        chunk_id="/item.md#section",
+        entity_path="/item.md",
+        entity_type="Term",
+        title="Item",
+        heading="Section",
+        text="Body",
+        content_hash="hash",
+        metadata=MappingProxyType({"nested": MappingProxyType({"key": "value"})}),
+    )
+
+    assert canonical_chunk_bytes((chunk,)) == (
+        b'{"chunk_id":"/item.md#section","content_hash":"hash",'
+        b'"entity_path":"/item.md","entity_type":"Term",'
+        b'"heading":"Section","metadata":{"nested":{"key":"value"}},'
+        b'"ordinal":0,"relations":[],"source_ids":[],"tags":[],'
+        b'"text":"Body","title":"Item"}\n'
+    )

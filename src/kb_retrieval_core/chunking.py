@@ -15,12 +15,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime
-from pathlib import Path
-from typing import Any
 import re
 from dataclasses import replace
 
+from ._normalization import normalize_json, normalize_source_id
 from .models import Chunk, Entity, Snapshot
 
 _ATX_RE = re.compile(r"^[ \t]{0,3}(#{1,6})(?:[ \t]+(.*?)[ \t]*|[ \t]*)$")
@@ -150,11 +148,11 @@ def chunk_to_dict(chunk: Chunk) -> dict[str, object]:
         "heading": chunk.heading,
         "text": chunk.text,
         "tags": list(chunk.tags),
-        "source_ids": [_normalize_source_id(value) for value in chunk.source_ids],
+        "source_ids": [normalize_source_id(value, allow_empty=True) for value in chunk.source_ids],
         "relations": [relation_to_dict(relation) for relation in chunk.relations],
         "content_hash": chunk.content_hash,
         "ordinal": chunk.ordinal,
-        "metadata": _json_normalize(chunk.metadata),
+        "metadata": normalize_json(chunk.metadata),
     }
 
 
@@ -163,10 +161,10 @@ def relation_to_dict(relation: Relation) -> dict[str, object]:
         "predicate": relation.predicate,
         "target": relation.target,
         "source_path": relation.source_path,
-        "source_ids": [_normalize_source_id(value) for value in relation.source_ids],
-        "owner_source_ids": [_normalize_source_id(value) for value in relation.owner_source_ids],
+        "source_ids": [normalize_source_id(value, allow_empty=True) for value in relation.source_ids],
+        "owner_source_ids": [normalize_source_id(value, allow_empty=True) for value in relation.owner_source_ids],
         "confidence": relation.confidence,
-        "metadata": _json_normalize(relation.metadata),
+        "metadata": normalize_json(relation.metadata),
     }
 
 
@@ -195,40 +193,6 @@ def canonical_chunk_hash(chunks: Iterable[Chunk]) -> str:
 
 chunk_jsonl_bytes = canonical_chunk_bytes
 chunks_hash = canonical_chunk_hash
-
-
-def _normalize_source_id(value: str) -> str:
-    result = value.strip()
-    if result.casefold().startswith("ref:"):
-        result = result[4:].strip()
-    return result
-
-
-def _json_normalize(value: object) -> object:
-    if isinstance(value, datetime):
-        if value.tzinfo is not None and value.utcoffset() is not None and value.utcoffset().total_seconds() == 0:
-            return value.isoformat().replace("+00:00", "Z")
-        return value.isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if isinstance(value, dict):
-        if any(not isinstance(key, str) for key in value):
-            raise TypeError("JSON mapping keys must be strings")
-        return {key: _json_normalize(item) for key, item in sorted(value.items())}
-    if hasattr(value, "items"):
-        return _json_normalize(dict(value.items()))
-    if isinstance(value, (list, tuple)):
-        return [_json_normalize(item) for item in value]
-    if isinstance(value, (set, frozenset)):
-        result = [_json_normalize(item) for item in value]
-        return sorted(result, key=lambda item: json.dumps(item, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
-    if isinstance(value, float) and not (value == value and abs(value) != float("inf")):
-        raise ValueError("non-finite number is not JSON-compatible")
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    raise TypeError(f"unsupported JSON value: {type(value).__name__}")
 
 
 __all__ = [

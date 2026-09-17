@@ -10,6 +10,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Iterable, Mapping
 
+from ._normalization import normalize_json, normalize_source_id
 from .models import Reference, SearchHit, Snapshot
 
 
@@ -52,7 +53,15 @@ class ContextReference:
         return cls(reference_id, metadata={"unresolved": True}, resolved=False)
 
     def to_dict(self) -> dict[str, object]:
-        return {"id": self.reference_id, "title": self.title, "authors": list(self.authors), "year": self.year, "url": self.url, "metadata": _json_value(self.metadata, "reference metadata"), "resolved": self.resolved}
+        return {
+            "id": self.reference_id,
+            "title": self.title,
+            "authors": list(self.authors),
+            "year": self.year,
+            "url": self.url,
+            "metadata": _json_value(self.metadata, "reference metadata"),
+            "resolved": self.resolved,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +130,29 @@ class EvidencePacket:
             object.__setattr__(self, "relation", _freeze(self.relation, "relation metadata"))
 
     def to_dict(self) -> dict[str, object]:
-        return {"rank": self.rank, "score": self.score, "retriever": self.retriever, "entity_path": self.entity_path, "section": self.section, "text": self.text, "source_ids": list(self.source_ids), "passage_source_ids": list(self.passage_source_ids), "relation_source_ids": list(self.relation_source_ids), "references": [item.to_dict() for item in self.references], "claim_status": self.claim_status, "confidence": self.confidence, "confidence_weight": self.confidence_weight, "claim_id": self.claim_id, "claim_path": self.claim_path, "property": self.property, "value": _json_value(self.value, "claim value") if self.value is not None else None, "affirmative": self.affirmative, "requires_hedging": self.requires_hedging, "relation": _json_value(self.relation, "relation metadata") if self.relation is not None else None, "metadata": _json_value(self.metadata, "evidence metadata")}
+        return {
+            "rank": self.rank,
+            "score": self.score,
+            "retriever": self.retriever,
+            "entity_path": self.entity_path,
+            "section": self.section,
+            "text": self.text,
+            "source_ids": list(self.source_ids),
+            "passage_source_ids": list(self.passage_source_ids),
+            "relation_source_ids": list(self.relation_source_ids),
+            "references": [item.to_dict() for item in self.references],
+            "claim_status": self.claim_status,
+            "confidence": self.confidence,
+            "confidence_weight": self.confidence_weight,
+            "claim_id": self.claim_id,
+            "claim_path": self.claim_path,
+            "property": self.property,
+            "value": _json_value(self.value, "claim value") if self.value is not None else None,
+            "affirmative": self.affirmative,
+            "requires_hedging": self.requires_hedging,
+            "relation": _json_value(self.relation, "relation metadata") if self.relation is not None else None,
+            "metadata": _json_value(self.metadata, "evidence metadata"),
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,7 +184,10 @@ def assemble_context(hits: Iterable[SearchHit], snapshot: Snapshot, *, strict: b
     if any(not isinstance(hit, SearchHit) for hit in values):
         raise ContextAssemblyError("hits must contain SearchHit objects")
     values = tuple(sorted(values, key=lambda hit: (hit.rank, -hit.score, hit.evidence.entity_path, hit.retriever, hit.evidence.section or "", hit.evidence.text)))
-    references = {_normalize_source_id(reference.reference_id): reference for reference in snapshot.references}
+    references = {
+        normalize_source_id(reference.reference_id, allow_empty=True): reference
+        for reference in snapshot.references
+    }
     packets: list[EvidencePacket] = []
     unresolved: list[str] = []
     seen: set[tuple[object, ...]] = set()
@@ -180,8 +214,8 @@ assemble_evidence = assemble_context
 def _packet_from_hit(hit: SearchHit, references: Mapping[str, Reference], strict: bool, unresolved: list[str]) -> EvidencePacket:
     evidence = hit.evidence
     metadata = _freeze(evidence.metadata, "evidence metadata")
-    passage_ids = tuple(_normalize_source_id(item) for item in (evidence.passage_source_ids or evidence.source_ids))
-    relation_ids = tuple(_normalize_source_id(item) for item in _source_values(metadata.get("relation_source_ids", metadata.get("claim_source_ids", ()))))
+    passage_ids = tuple(normalize_source_id(item, allow_empty=True) for item in (evidence.passage_source_ids or evidence.source_ids))
+    relation_ids = tuple(normalize_source_id(item, allow_empty=True) for item in _source_values(metadata.get("relation_source_ids", metadata.get("claim_source_ids", ()))))
     all_ids = tuple(dict.fromkeys(passage_ids + relation_ids))
     resolved: list[ContextReference] = []
     for source_id in all_ids:
@@ -203,7 +237,29 @@ def _packet_from_hit(hit: SearchHit, references: Mapping[str, Reference], strict
     claim_status = _metadata_value(metadata, "claim_status", str)
     confidence = _metadata_value(metadata, "confidence", str)
     claim_id = _metadata_value(metadata, "claim_id", str)
-    return EvidencePacket(rank=hit.rank, score=hit.score, retriever=hit.retriever, entity_path=evidence.entity_path, section=evidence.section, text=evidence.text, source_ids=passage_ids, passage_source_ids=passage_ids, relation_source_ids=relation_ids, references=tuple(resolved), metadata=metadata, claim_status=claim_status, confidence=confidence, confidence_weight=_number_value(metadata, "confidence_weight"), claim_id=claim_id, claim_path=_metadata_value(metadata, "claim_path", str), property=_metadata_value(metadata, "property", str), value=metadata.get("value"), affirmative=_metadata_value(metadata, "affirmative", bool), requires_hedging=bool(metadata.get("requires_hedging", False)), relation=relation)
+    return EvidencePacket(
+        rank=hit.rank,
+        score=hit.score,
+        retriever=hit.retriever,
+        entity_path=evidence.entity_path,
+        section=evidence.section,
+        text=evidence.text,
+        source_ids=passage_ids,
+        passage_source_ids=passage_ids,
+        relation_source_ids=relation_ids,
+        references=tuple(resolved),
+        metadata=metadata,
+        claim_status=claim_status,
+        confidence=confidence,
+        confidence_weight=_number_value(metadata, "confidence_weight"),
+        claim_id=claim_id,
+        claim_path=_metadata_value(metadata, "claim_path", str),
+        property=_metadata_value(metadata, "property", str),
+        value=metadata.get("value"),
+        affirmative=_metadata_value(metadata, "affirmative", bool),
+        requires_hedging=bool(metadata.get("requires_hedging", False)),
+        relation=relation,
+    )
 
 
 def _metadata_value(metadata: Mapping[str, object], key: str, expected: type) -> object:
@@ -232,13 +288,22 @@ def _source_values(value: object) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _normalize_source_id(value: str) -> str:
-    value = value.strip()
-    return value[4:].strip() if value.casefold().startswith("ref:") else value
-
-
 def _packet_key(packet: EvidencePacket) -> tuple[object, ...]:
-    return (packet.entity_path, packet.section, packet.text, packet.source_ids, packet.relation_source_ids, packet.retriever, json.dumps(_json_value(packet.metadata, "evidence metadata"), ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+    metadata = json.dumps(
+        _json_value(packet.metadata, "evidence metadata"),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return (
+        packet.entity_path,
+        packet.section,
+        packet.text,
+        packet.source_ids,
+        packet.relation_source_ids,
+        packet.retriever,
+        metadata,
+    )
 
 
 def _freeze(value: object, field_name: str) -> Mapping[str, object] | object:
@@ -260,26 +325,18 @@ def _freeze(value: object, field_name: str) -> Mapping[str, object] | object:
 
 
 def _json_value(value: object, field_name: str) -> object:
-    if isinstance(value, datetime):
-        if value.tzinfo is not None and value.utcoffset() is not None and value.utcoffset().total_seconds() == 0:
-            return value.isoformat().replace("+00:00", "Z")
-        return value.isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.as_posix()
-    if isinstance(value, Mapping):
-        return {key: _json_value(item, field_name) for key, item in sorted(value.items())}
-    if isinstance(value, (list, tuple)):
-        return [_json_value(item, field_name) for item in value]
-    if isinstance(value, (set, frozenset)):
-        items = [_json_value(item, field_name) for item in value]
-        return sorted(items, key=lambda item: json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
-    if isinstance(value, float) and not math.isfinite(value):
-        raise ContextAssemblyError(f"{field_name} contains a non-finite number")
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    raise ContextAssemblyError(f"{field_name} contains unsupported metadata value {type(value).__name__}")
+    try:
+        return normalize_json(value)
+    except ValueError as exc:
+        raise ContextAssemblyError(f"{field_name} contains a non-finite number") from exc
+    except TypeError as exc:
+        message = str(exc)
+        if message.startswith("unsupported JSON value: "):
+            value_type = message.removeprefix("unsupported JSON value: ")
+            message = f"{field_name} contains unsupported metadata value {value_type}"
+        else:
+            message = f"{field_name} contains an unsupported JSON value"
+        raise ContextAssemblyError(message) from exc
 
 
 __all__ = ["ContextAssemblyError", "ContextReference", "EvidencePacket", "ContextReport", "assemble_context", "assemble_evidence", "build_context"]

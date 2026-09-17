@@ -7,6 +7,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Iterable
 
+from ._normalization import normalize_source_id
 from .models import Claim, Entity, Evidence, Relation, SearchHit, Snapshot
 
 CONFIDENCE_WEIGHTS: dict[str, float] = {"A": 1.0, "B": 0.75, "C": 0.5, "D": 0.25}
@@ -80,7 +81,7 @@ class GraphIndex:
         else:
             return
         owner_ids = relation.owner_source_ids or (() if owner is None else owner.source_ids)
-        support_ids = tuple(dict.fromkeys(_normalize_source_id(item) for item in (relation.source_ids or owner_ids)))
+        support_ids = tuple(dict.fromkeys(normalize_source_id(item, allow_empty=True) for item in (relation.source_ids or owner_ids)))
         edge = _Edge(source, relation.target, relation.predicate, support_ids, relation=relation)
         key = (source, relation.target, relation.predicate, relation.confidence, False)
         previous = edges.get(key)
@@ -93,7 +94,7 @@ class GraphIndex:
         source = claim.subject or default_source
         if source is None or claim.predicate is None or claim.target is None:
             return  # value Claims are retrievable/inspectable but not graph edges
-        edges.setdefault((source, claim.target, claim.predicate, claim.claim_path or claim.claim_id, True), _Edge(source, claim.target, claim.predicate, tuple(_normalize_source_id(item) for item in claim.source_ids), claim=claim))
+        edges.setdefault((source, claim.target, claim.predicate, claim.claim_path or claim.claim_id, True), _Edge(source, claim.target, claim.predicate, tuple(normalize_source_id(item, allow_empty=True) for item in claim.source_ids), claim=claim))
 
     @classmethod
     def from_snapshot(cls, snapshot: Snapshot, *, decay: float = 0.75, claim_decay: float = 0.5, confidence_weights: dict[str, float] | None = None) -> "GraphIndex":
@@ -189,7 +190,7 @@ def _expanded_hit(entity: Entity, edge: _Edge, direction: str, seed: SearchHit, 
         "confidence_weight": confidence_factor,
         "claim_id": None if claim is None else claim.claim_id,
         "claim_path": None if claim is None else claim.claim_path,
-        "claim_source_ids": () if claim is None else tuple(_normalize_source_id(item) for item in claim.source_ids),
+        "claim_source_ids": () if claim is None else tuple(normalize_source_id(item, allow_empty=True) for item in claim.source_ids),
         "affirmative": affirmative,
         "requires_hedging": bool(claim is not None and claim.confidence in {"C", "D"}) or bool(relation is not None and relation.confidence in {"C", "D"}),
     }
@@ -197,7 +198,20 @@ def _expanded_hit(entity: Entity, edge: _Edge, direction: str, seed: SearchHit, 
         metadata["property"] = claim.property
         metadata["value"] = claim.value
     text = entity.content.strip() or (entity.description or entity.title)
-    return SearchHit(Evidence(entity.entity_path, text, source_ids=tuple(_normalize_source_id(item) for item in entity.source_ids), metadata=metadata), score=score, rank=1, retriever="graph.one-hop")
+    evidence = Evidence(
+        entity_path=entity.entity_path,
+        text=text,
+        source_ids=tuple(
+            normalize_source_id(item, allow_empty=True) for item in entity.source_ids
+        ),
+        metadata=metadata,
+    )
+    return SearchHit(
+        evidence=evidence,
+        score=score,
+        rank=1,
+        retriever="graph.one-hop",
+    )
 
 
 def _validate_seeds(seeds: tuple[SearchHit, ...], entities: dict[str, Entity]) -> None:
@@ -236,11 +250,6 @@ def _predicate_set(predicates: Iterable[str] | None) -> frozenset[str] | None:
 
 def _normalize(value: str) -> str:
     return "".join(char for char in unicodedata.normalize("NFKC", value).casefold() if not char.isspace())
-
-
-def _normalize_source_id(value: str) -> str:
-    value = value.strip()
-    return value[4:].strip() if value.casefold().startswith("ref:") else value
 
 
 def _rank_hits(hits: Iterable[SearchHit], top_k: int | None = None) -> tuple[SearchHit, ...]:

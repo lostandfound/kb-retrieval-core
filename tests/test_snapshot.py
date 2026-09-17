@@ -1,10 +1,37 @@
 import json
+import inspect
 from pathlib import Path
 
 import pytest
 
-from kb_retrieval_core import Claim, SnapshotLoadError, chunk_snapshot, load_snapshot
+from kb_retrieval_core import (
+    Claim,
+    SnapshotLoadError,
+    chunk_snapshot,
+    load_snapshot,
+    normalize_json,
+    normalize_source_id,
+)
+from kb_retrieval_core._normalization import normalize_source_id as shared_normalize_source_id
 from kb_retrieval_core.snapshot import _claim_export_key
+
+
+def test_public_source_normalizer_signature_and_errors_remain_stable() -> None:
+    assert list(inspect.signature(normalize_source_id).parameters) == ["value"]
+    assert normalize_source_id("  ref: source  ") == "source"
+    with pytest.raises(TypeError, match="source ID must be a string"):
+        normalize_source_id(1)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="source ID must not be empty"):
+        normalize_source_id("  ")
+
+
+def test_shared_normalizers_cover_internal_compatibility_cases() -> None:
+    assert shared_normalize_source_id("  ref:  ", allow_empty=True) == ""
+    assert normalize_json({"values": {"b", "a"}}) == {"values": ["a", "b"]}
+    with pytest.raises(TypeError, match="unsupported JSON value"):
+        normalize_json(object())
+    with pytest.raises(ValueError, match="non-finite number"):
+        normalize_json(float("inf"))
 
 
 def _bundle(tmp_path: Path) -> tuple[Path, Path, Path]:
