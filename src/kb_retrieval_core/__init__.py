@@ -51,6 +51,11 @@ from .vector_store import (
     VectorSidecarError,
     canonical_vector_bytes,
 )
+from .vector_retrieval import (
+    VectorRetrievalError,
+    VectorRetriever,
+    build_vector_retriever,
+)
 
 __all__ = [
     "Claim", "Chunk", "Entity", "Evidence", "Reference", "Relation", "SearchHit", "Snapshot",
@@ -69,6 +74,7 @@ __all__ = [
     "SQLITE_INDEX_FORMAT", "SQLiteIndex", "PersistentSQLiteIndex", "PersistentIndex", "SQLiteIndexError", "build_sqlite_index", "open_sqlite_index",
     "VECTOR_SIDECAR_FORMAT", "SQLiteVectorSidecar", "VectorRecord", "VectorSidecarError",
     "canonical_vector_bytes",
+    "VectorRetrievalError", "VectorRetriever", "build_vector_retriever",
 ]
 
 __version__ = "0.1.0"

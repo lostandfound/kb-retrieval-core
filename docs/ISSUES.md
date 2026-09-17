@@ -138,6 +138,7 @@ index while detecting every incompatible or stale artifact.
 
 **Title**: `feat: implement deterministic vector retrieval`  
 **GitHub Issue**: not created  
+**Status**: implemented locally; pending review and commit
 **Purpose**: Prove embedding and sidecar behavior independently before hybrid
 fusion can obscure vector-search defects.
 
@@ -154,14 +155,14 @@ fusion can obscure vector-search defects.
 
 **DoD**:
 
-- [ ] Known vectors return the expected ranks and scores for each supported
+- [x] Known vectors return the expected ranks and scores for each supported
       metric.
-- [ ] Equal scores and cutoff boundaries are deterministic.
-- [ ] Reopened sidecars return the same results as freshly built sidecars.
-- [ ] Provenance equals the owning chunk provenance and never target-entity
+- [x] Equal scores and cutoff boundaries are deterministic.
+- [x] Reopened sidecars return the same results as freshly built sidecars.
+- [x] Provenance equals the owning chunk provenance and never target-entity
       provenance.
-- [ ] Vector-only tests use no network or external service.
-- [ ] `PYTHONPATH=src python3 -m pytest` passes.
+- [x] Vector-only tests use no network or external service.
+- [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/vector-retrieval`  
 **Dependencies**: Issues #2 and #3  
