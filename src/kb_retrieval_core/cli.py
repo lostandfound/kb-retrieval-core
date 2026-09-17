@@ -8,6 +8,7 @@ answers or call a model.
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import sys
 from pathlib import Path
@@ -15,15 +16,16 @@ from typing import Any, Sequence
 
 from ._normalization import normalize_json
 from .chunking import chunk_snapshot, relation_to_dict
+from .context import assemble_context
 from .evaluation import EvaluationReport, evaluate, load_evaluation_cases
 from .models import Claim, Entity, Reference, Relation, SearchHit
 from .snapshot import load_snapshot
 from .sqlite_index import SQLiteIndex
 from .retrieval import RetrievalError
-from .embeddings import DeterministicTestEmbedder, EmbeddingConfig
-from .vector_store import SQLiteVectorSidecar
+from .embeddings import DeterministicTestEmbedder, EmbeddingConfig, EmbeddingDocument, VectorIndexConfig
+from .vector_store import SQLiteVectorSidecar, VectorRecord
 from .vector_retrieval import VectorRetriever
-from .retrieval import HybridRetriever, RetrievalConfig
+from .retrieval import GraphExpansionConfig, HybridRetriever, RetrievalConfig
 
 
 class _ArgumentError(ValueError):
@@ -48,17 +50,36 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--ngram-size", type=int, default=2)
     _pretty_argument(build)
 
+    vector_build = commands.add_parser("vector-build", help="build an optional vector sidecar with the offline deterministic test embedder")
+    _index_argument(vector_build, required=True)
+    vector_build.add_argument("--vector-index", required=True, type=Path)
+    vector_build.add_argument("--dimension", type=int, default=8)
+    vector_build.add_argument("--metric", choices=("cosine", "dot"), default="cosine")
+    _pretty_argument(vector_build)
+
     search = commands.add_parser("search", help="search persisted chunks")
     search.add_argument("query")
     _index_argument(search, required=True)
     search.add_argument("--top-k", type=int, default=5)
     search.add_argument("--mode", choices=("lexical", "vector", "hybrid"), default="lexical")
     search.add_argument("--vector-index", type=Path)
+    _graph_arguments(search)
     _pretty_argument(search)
+
+    context = commands.add_parser("context", help="search and assemble source-resolved evidence packets")
+    context.add_argument("query")
+    _index_argument(context, required=True)
+    context.add_argument("--top-k", type=int, default=5)
+    context.add_argument("--mode", choices=("lexical", "vector", "hybrid"), default="lexical")
+    context.add_argument("--vector-index", type=Path)
+    context.add_argument("--non-strict", action="store_true", help="retain unresolved sources as diagnostics")
+    _graph_arguments(context)
+    _pretty_argument(context)
 
     inspect = commands.add_parser("inspect", help="inspect a persisted entity and its chunks")
     inspect.add_argument("entity_path")
     _index_argument(inspect, required=True)
+    inspect.add_argument("--vector-index", type=Path, help="also inspect a vector sidecar manifest")
     _pretty_argument(inspect)
 
     evaluation = commands.add_parser("eval", help="evaluate retrieval against rag-eval.yml")
@@ -67,6 +88,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluation.add_argument("--k", "--top-k", dest="k", type=int, default=5)
     evaluation.add_argument("--mode", choices=("lexical", "vector", "hybrid"), default="lexical")
     evaluation.add_argument("--vector-index", type=Path)
+    _graph_arguments(evaluation)
     _pretty_argument(evaluation)
     return parser
 
@@ -79,14 +101,25 @@ def _pretty_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--pretty", action="store_true", help="indent JSON output")
 
 
+def _graph_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--expand-graph", action="store_true", help="enable deterministic one-hop graph expansion")
+    parser.add_argument("--graph-predicate", action="append", default=None, help="limit expansion to a predicate; repeatable")
+    parser.add_argument("--include-rejected-claims", action="store_true")
+    parser.add_argument("--include-unknown-claims", action="store_true")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
         if args.command == "build":
             result = _build(args)
+        elif args.command == "vector-build":
+            result = _vector_build(args)
         elif args.command == "search":
             result = _search(args)
+        elif args.command == "context":
+            result = _context(args)
         elif args.command == "inspect":
             result = _inspect(args)
         elif args.command == "eval":
@@ -115,11 +148,53 @@ def _build(args: argparse.Namespace) -> dict[str, object]:
         }
 
 
+def _vector_build(args: argparse.Namespace) -> dict[str, object]:
+    with SQLiteIndex.open(args.index_path) as index:
+        config = EmbeddingConfig(
+            implementation="deterministic-test",
+            model="offline-mechanics",
+            revision="v1",
+            dimension=args.dimension,
+        )
+        vector_config = VectorIndexConfig(config, similarity_metric=args.metric, format_version=1)
+        embedder = DeterministicTestEmbedder(config)
+        embedded = embedder.embed_documents(tuple(
+            EmbeddingDocument(chunk.chunk_id, chunk.text) for chunk in index.snapshot.chunks
+        ))
+        content_hashes = {chunk.chunk_id: chunk.content_hash for chunk in index.snapshot.chunks}
+        records = tuple(
+            VectorRecord(item.document_id, content_hashes[item.document_id], item.vector)
+            for item in embedded
+        )
+        with SQLiteVectorSidecar.build(
+            records,
+            args.vector_index,
+            config=vector_config,
+            snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))),
+            chunk_hash=str(index.manifest["chunk_hash"]),
+        ) as sidecar:
+            manifest = sidecar.manifest
+    return {
+        "command": "vector-build",
+        "vector_index": str(args.vector_index),
+        "test_embedder_only": True,
+        "manifest": manifest,
+    }
+
+
 def _search(args: argparse.Namespace) -> dict[str, object]:
     with SQLiteIndex.open(args.index_path) as index:
         retriever = _cli_retriever(index, args)
-        hits = retriever.search(args.query, config=RetrievalConfig(mode=args.mode, top_k=args.top_k))
+        hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
     return {"command": "search", "query": args.query, "results": [_hit_to_dict(hit) for hit in hits]}
+
+
+def _context(args: argparse.Namespace) -> dict[str, object]:
+    with SQLiteIndex.open(args.index_path) as index:
+        retriever = _cli_retriever(index, args)
+        hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
+        report = assemble_context(hits, index.snapshot, strict=not args.non_strict)
+    return {"command": "context", "query": args.query, **report.to_dict()}
 
 
 def _inspect(args: argparse.Namespace) -> dict[str, object]:
@@ -132,11 +207,15 @@ def _inspect(args: argparse.Namespace) -> dict[str, object]:
         chunks = tuple(item for item in snapshot.chunks if item.entity_path == path)
         if not chunks:
             chunks = tuple(item for item in chunk_snapshot(snapshot).chunks if item.entity_path == path)
-    return {
-        "command": "inspect",
-        "entity": _entity_to_dict(entity),
-        "chunks": [_chunk_to_dict(item) for item in chunks],
-    }
+        result: dict[str, object] = {
+            "command": "inspect",
+            "entity": _entity_to_dict(entity),
+            "chunks": [_chunk_to_dict(item) for item in chunks],
+        }
+        if args.vector_index is not None:
+            with SQLiteVectorSidecar.open(args.vector_index) as sidecar:
+                result["vector_manifest"] = sidecar.manifest
+        return result
 
 
 def _evaluate(args: argparse.Namespace) -> dict[str, object]:
@@ -155,15 +234,50 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         vector_manifest = getattr(retriever, "vector_manifest", {})
         report = evaluate(
             cases,
-            lambda query, top_k=args.k: retriever.search(query, config=RetrievalConfig(mode=args.mode, top_k=top_k)),
+            lambda query, top_k=args.k: retriever.search(query, config=_retrieval_config(args, top_k)),
             k=args.k,
             retrieval_mode=args.mode,
-            snapshot_hash=str(index.manifest.get("source_hash")) if args.mode != "lexical" else None,
+            snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))),
+            package_identity=_package_identity(),
             embedding_fingerprint=vector_manifest.get("embedding_fingerprint"),
             vector_index_fingerprint=vector_manifest.get("vector_index_fingerprint"),
-            fusion_config={"mode": args.mode, "backend_cutoffs": {"lexical.passage": args.k, "lexical.entity": args.k, "vector": args.k}} if args.mode == "hybrid" else {},
+            fusion_config=_evaluation_config(args),
         )
     return {"command": "eval", **_report_to_dict(report)}
+
+
+def _retrieval_config(args: argparse.Namespace, top_k: int) -> RetrievalConfig:
+    graph = GraphExpansionConfig(
+        enabled=args.expand_graph,
+        predicates=None if args.graph_predicate is None else tuple(args.graph_predicate),
+        include_rejected=args.include_rejected_claims,
+        include_unknown=args.include_unknown_claims,
+    )
+    return RetrievalConfig(mode=args.mode, top_k=top_k, graph=graph)
+
+
+def _evaluation_config(args: argparse.Namespace) -> dict[str, object]:
+    config: dict[str, object] = {
+        "mode": args.mode,
+        "top_k": args.k,
+        "graph": {
+            "enabled": args.expand_graph,
+            "predicates": args.graph_predicate,
+            "include_rejected": args.include_rejected_claims,
+            "include_unknown": args.include_unknown_claims,
+        },
+    }
+    if args.mode == "hybrid":
+        config["backend_cutoffs"] = {"lexical.passage": args.k, "lexical.entity": args.k, "vector": args.k}
+    return config
+
+
+def _package_identity() -> str:
+    try:
+        version = importlib.metadata.version("kb-retrieval-core")
+    except importlib.metadata.PackageNotFoundError:
+        version = "0+unknown"
+    return f"kb-retrieval-core@{version}"
 
 
 def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetriever:
@@ -267,6 +381,7 @@ def _report_to_dict(report: EvaluationReport) -> dict[str, object]:
                 "recall_at_k": result.recall_at_k,
                 "mrr": result.mrr,
                 "retrieved_paths": list(result.retrieved_paths),
+                "retrieved_evidence_paths": [list(item.evidence_paths) for item in result.retrieved],
                 "missing_paths": list(result.missing_paths),
                 "scores": [item.score for item in result.retrieved],
             }

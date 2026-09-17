@@ -53,7 +53,7 @@ def test_manifest_is_deterministic_and_records_source_fingerprint(tmp_path: Path
     assert first.manifest == second.manifest
     manifest = json.loads((tmp_path / "one" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["format"] == "kb-retrieval-sqlite"
-    assert manifest["format_version"] == 1
+    assert manifest["format_version"] == 2
     assert manifest["counts"]["claims"] == len(snapshot.claims)
     assert manifest["chunk_hash"]
     first.close()
@@ -171,7 +171,7 @@ def test_open_rejects_schema_version_and_manifest_mismatch(tmp_path: Path) -> No
         SQLiteIndex.open(path)
 
     with sqlite3.connect(database) as connection:
-        connection.execute("PRAGMA user_version = 1")
+        connection.execute("PRAGMA user_version = 2")
     manifest_path = path / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["source_hash"] = "0" * 64
@@ -227,6 +227,40 @@ def test_persisted_index_searches_japanese_without_whitespace(tmp_path: Path) ->
     assert after == before
     assert after[0].evidence.entity_path == "/people/example.md"
     reopened.close()
+
+
+def test_persisted_lexical_postings_drive_candidate_selection(tmp_path: Path) -> None:
+    path = tmp_path / ".retrieval"
+    index = SQLiteIndex.build(_snapshot(), path)
+    with sqlite3.connect(path / "index.sqlite") as connection:
+        assert connection.execute("SELECT COUNT(*) FROM lexical_fields").fetchone()[0] > 0
+        assert connection.execute("SELECT COUNT(*) FROM lexical_ngrams").fetchone()[0] > 0
+        connection.execute("DELETE FROM lexical_ngrams")
+        connection.execute("UPDATE lexical_fields SET normalized_value = ''")
+        connection.commit()
+    index.close()
+    reopened = SQLiteIndex.open(path)
+    assert reopened.search("teaches", top_k=3) == ()
+    reopened.close()
+
+
+def test_persisted_entity_search_preserves_attached_claim_provenance(tmp_path: Path) -> None:
+    base = _snapshot()
+    source = replace(base.entities[0], claims=(base.claims[0],))
+    snapshot = replace(base, entities=(source, *base.entities[1:]))
+    expected = sqlite_index_module.LexicalIndex(snapshot).search_entities("Source Person", top_k=1)[0]
+    path = tmp_path / ".retrieval"
+    SQLiteIndex.build(snapshot, path).close()
+    with SQLiteIndex.open(path) as index:
+        actual = index.search_entities("Source Person", top_k=1)[0]
+
+    assert actual.evidence.metadata["claims"] == expected.evidence.metadata["claims"]
+    assert actual.evidence.metadata["claims"]
+    claim = actual.evidence.metadata["claims"][0]
+    assert claim["claim_path"] == "/claims/teaching.md"
+    assert claim["status"] == "proposed"
+    assert claim["confidence"] == "D"
+    assert claim["source_ids"] == ("claim",)
 
 
 def _claim_signature(claim) -> tuple[object, ...]:

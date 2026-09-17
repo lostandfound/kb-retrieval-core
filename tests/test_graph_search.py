@@ -178,6 +178,24 @@ def test_graph_expansion_ties_are_deterministic_and_options_validate() -> None:
         index.expand((_seed("/missing.md"),), expand=True)
 
 
+def test_value_claim_expands_as_subject_assertion_without_scalar_node() -> None:
+    claim = Claim(
+        claim_path="/claims/year.md", subject="/source.md", property="founded-year",
+        value="1900", status="accepted", confidence="A", source_ids=("archive",),
+    )
+    snapshot = Snapshot(
+        entities=(Entity("/source.md", "Organization", "Source", content="Source"),),
+        claims=(claim,),
+    )
+    hits = GraphIndex(snapshot).expand((_seed("/source.md"),), expand=True, top_k=2)
+    assertion = next(hit for hit in hits if hit.evidence.metadata.get("claim_path") == "/claims/year.md")
+    assert assertion.evidence.entity_path == "/source.md"
+    assert assertion.evidence.metadata["relation"]["direction"] == "assertion"
+    assert assertion.evidence.metadata["property"] == "founded-year"
+    assert assertion.evidence.metadata["value"] == "1900"
+    assert assertion.evidence.metadata["relation_source_ids"] == ("archive",)
+
+
 def test_claim_confidence_scales_status_decay_and_none_keeps_hit() -> None:
     source = Entity(
         "/source.md",

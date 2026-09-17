@@ -1,6 +1,6 @@
 # Issue list
 
-Project: `kb-retrieval-core` Milestone 3 — optional vector retrieval  
+Project: `kb-retrieval-core` architecture completion
 Created: 2026-09-17  
 Canonical requirements: `docs/architecture.md`, “Milestone 3: optional vector
 retrieval”
@@ -9,6 +9,28 @@ These are implementation issues, not yet-created GitHub issue numbers. Each
 issue is intended to fit within one to three working days and must preserve the
 domain-independent, offline lexical baseline. The consumer admission gate is
 deliberately separate from repository implementation acceptance.
+
+## Architecture audit follow-up (2026-09-17)
+
+The temporary implementation audit is not a canonical project record. Its
+confirmed gaps are tracked here in correction order:
+
+1. [x] Make Claim paths scoreable without turning Claims into graph entities.
+2. [x] Connect opt-in one-hop graph expansion to `HybridRetriever`, the CLI,
+   result metadata, and evaluation configuration.
+3. [x] Make every CLI evaluation report reproducible and admission-compatible.
+4. [x] Add named full-pipeline acceptance tests for lexical, graph, Claim,
+   vector, fusion, context, evaluation identity, and failure behavior.
+5. [x] Implement a persistent Japanese-capable lexical search structure, or
+   revise the accepted persistence requirement with measured justification.
+6. [x] Add the `context` CLI command with strict-by-default source resolution.
+7. [x] Decide and implement or explicitly defer vector-sidecar CLI creation.
+8. [x] Reconcile this ledger, README wording, and release status only after the
+   corresponding executable checks pass.
+
+The Claim-path decision is recorded in `docs/architecture.md`: evaluation
+recognizes both `entity_path` and emitted `claim_path`; Claims remain separate
+assertion records. Graph expansion is explicit and default-disabled.
 
 ## Dependency order
 
@@ -172,6 +194,7 @@ fusion can obscure vector-search defects.
 
 **Title**: `feat: implement deterministic entity-level RRF`  
 **GitHub Issue**: not created  
+**Status**: completed and covered by `tests/test_rrf.py`
 **Purpose**: Combine differently scaled rankings without losing deterministic
 entity identity or passage provenance.
 
@@ -204,6 +227,7 @@ entity identity or passage provenance.
 
 **Title**: `feat: add optional hybrid retrieval orchestration`  
 **GitHub Issue**: not created  
+**Status**: completed, including opt-in graph orchestration
 **Purpose**: Provide one explicit orchestration surface while keeping lexical
 retrieval fully functional and default when vector dependencies are absent.
 
@@ -235,6 +259,7 @@ retrieval fully functional and default when vector dependencies are absent.
 
 **Title**: `feat: add reproducible hybrid evaluation profiles`  
 **GitHub Issue**: not created  
+**Status**: completed, including reproducible lexical CLI reports
 **Purpose**: Separate repository mechanics from consumer admission and prevent
 post-hoc threshold changes.
 
@@ -271,6 +296,7 @@ post-hoc threshold changes.
 
 **Title**: `feat: add vector and hybrid CLI workflows`  
 **GitHub Issue**: not created  
+**Status**: completed with mechanics-only `vector-build`
 **Purpose**: Make optional vector behavior inspectable and scriptable without
 changing existing lexical command defaults.
 
@@ -305,6 +331,7 @@ changing existing lexical command defaults.
 
 **Title**: `test: add milestone 3 vector acceptance coverage`  
 **GitHub Issue**: not created  
+**Status**: completed with named offline full-pipeline checks
 **Purpose**: Demonstrate the complete optional-vector contract offline and make
 Milestone 3 implementation completion auditable.
 

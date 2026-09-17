@@ -84,6 +84,7 @@ class RetrievedResult:
     score: float
     rank: int
     retriever: str
+    evidence_paths: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.entity_path, str) or not self.entity_path.startswith("/"):
@@ -94,7 +95,11 @@ class RetrievedResult:
             raise ValueError("score must be finite")
         if not isinstance(self.retriever, str) or not self.retriever.strip():
             raise ValueError("retriever must not be empty")
+        paths = tuple(dict.fromkeys((self.entity_path, *self.evidence_paths)))
+        if any(not isinstance(path, str) or not path.startswith("/") for path in paths):
+            raise ValueError("evidence_paths must be bundle-root-relative")
         object.__setattr__(self, "score", float(self.score))
+        object.__setattr__(self, "evidence_paths", paths)
 
     @property
     def path(self) -> str:
@@ -262,10 +267,11 @@ def compare_evaluations(baseline: EvaluationReport, candidate: EvaluationReport,
         for label, report in (("baseline", baseline), ("candidate", candidate)):
             if not report.evaluation_case_hash or not report.snapshot_hash or not report.retrieval_mode or not report.package_identity:
                 diagnostics.append(f"{label} report lacks reproducibility metadata")
-        if not candidate.embedding_fingerprint or not candidate.vector_index_fingerprint:
-            diagnostics.append("candidate report lacks embedding/vector fingerprints")
-        if candidate.retrieval_mode in {"vector", "hybrid"} and not candidate.fusion_config:
-            diagnostics.append("candidate report lacks fusion configuration")
+        if candidate.retrieval_mode in {"vector", "hybrid"}:
+            if not candidate.embedding_fingerprint or not candidate.vector_index_fingerprint:
+                diagnostics.append("candidate report lacks embedding/vector fingerprints")
+            if not candidate.fusion_config:
+                diagnostics.append("candidate report lacks fusion configuration")
     baseline_primary = getattr(baseline, profile.primary_metric)
     candidate_primary = getattr(candidate, profile.primary_metric)
     improvement = float(candidate_primary - baseline_primary)
@@ -384,12 +390,21 @@ def evaluate(
         if any(not isinstance(hit, SearchHit) for hit in hits):
             raise EvaluationError(f"retriever returned a non-SearchHit for {case.case_id or case.query!r}")
         hits = tuple(hit for hit in hits if hit.rank <= k)[:k]
-        retrieved = tuple(RetrievedResult(hit.evidence.entity_path, hit.score, rank, hit.retriever) for rank, hit in enumerate(hits, 1))
+        retrieved = tuple(
+            RetrievedResult(
+                hit.evidence.entity_path,
+                hit.score,
+                rank,
+                hit.retriever,
+                _hit_evidence_paths(hit),
+            )
+            for rank, hit in enumerate(hits, 1)
+        )
         expected = set(case.expected_paths)
-        found = {item.entity_path for item in retrieved} & expected
+        found = {path for item in retrieved for path in item.evidence_paths} & expected
         missing = tuple(path for path in case.expected_paths if path not in found)
         recall = len(found) / len(expected)
-        first = next((item.rank for item in retrieved if item.entity_path in expected), None)
+        first = next((item.rank for item in retrieved if expected.intersection(item.evidence_paths)), None)
         mrr = 0.0 if first is None else 1.0 / first
         results.append(EvaluationResult(case, retrieved, recall, mrr, missing, not missing))
     recall = sum(result.recall_at_k for result in results) / len(results)
@@ -407,6 +422,14 @@ def evaluate(
         retrieval_mode, snapshot_hash, case_hash, package_identity,
         embedding_fingerprint, vector_index_fingerprint, fusion_config or {},
     )
+
+
+def _hit_evidence_paths(hit: SearchHit) -> tuple[str, ...]:
+    paths = [hit.evidence.entity_path]
+    claim_path = hit.evidence.metadata.get("claim_path")
+    if isinstance(claim_path, str) and claim_path.startswith("/"):
+        paths.append(claim_path)
+    return tuple(paths)
 
 
 def _evaluation_case_hash(cases: Iterable[EvaluationCase]) -> str:

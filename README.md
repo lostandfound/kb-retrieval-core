@@ -8,7 +8,7 @@
 
 - Snapshot、`graph.json`、`references.yml` の読み込み
 - 見出し単位の決定的 chunking
-- SQLite lexical index と character n-gram 検索
+- SQLite に永続化した character n-gram postings による決定的 lexical 検索
 - 任意 vector embedding の契約・fingerprint・SQLite sidecar
 - vector-only 検索、entity-level RRF、lexical/vector/hybrid orchestration
 - passage、relation、Claim の provenance 保持
@@ -41,6 +41,8 @@ kb-retrieval build \
   --index .retrieval
 
 kb-retrieval search "teaches" --index .retrieval --mode lexical
+kb-retrieval search "teacher" --index .retrieval --expand-graph
+kb-retrieval context "teaches" --index .retrieval
 kb-retrieval inspect /entities/source.md --index .retrieval
 kb-retrieval eval --index .retrieval --mode lexical
 ```
@@ -48,6 +50,17 @@ kb-retrieval eval --index .retrieval --mode lexical
 すべての出力は JSON です。構文エラー、入力エラー、未構成の vector resource は stderr に JSON 診断を出し、非ゼロ終了します。
 
 vector / hybrid mode は、あらかじめ作成した SQLite vector sidecar を `--vector-index` で指定します。sidecar の manifest に保存された embedding configuration と lexical index の hash が検証されます。
+
+オフラインの仕組み検証用 sidecar はCLIから構築できます。このコマンドは
+`DeterministicTestEmbedder` 専用であり、consumer admission や本番 embedding
+品質の根拠にはなりません。
+
+```bash
+kb-retrieval vector-build \
+  --index .retrieval \
+  --vector-index .retrieval-vectors \
+  --dimension 8
+```
 
 ```bash
 kb-retrieval search "teaches" \
@@ -71,7 +84,7 @@ vector retrieval は optional かつ default-disabled です。consumer が実�
 - `evaluate`, `EvaluationProfile`, `compare_evaluations`
 - `assemble_context`
 
-検索結果は entity path、section、passage source IDs、適用された relation / Claim の status・confidence・path を保持します。source IDs は内部で bare ID に正規化され、context assembly が references と解決します。
+検索結果は entity path、section、passage source IDs、適用された relation / Claim の status・confidence・path を保持します。Claim path は entity path と同様に評価可能な evidence path です。グラフ展開は明示的な `--expand-graph` 指定時だけ実行され、適用設定が結果に記録されます。source IDs は内部で bare ID に正規化され、context assembly が references と解決します。
 
 ## 設計資料とリリース基準
 

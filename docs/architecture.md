@@ -145,6 +145,16 @@ Claim Markdown carries the same common `title`, `description`, `tags`, and
 The Claim path is retained as provenance. Claims are separate records, not
 ordinary persisted graph nodes.
 
+Evaluation evidence paths may name either ordinary document/entity paths or
+Claim document paths. A returned hit satisfies its entity path and, when graph
+or assertion metadata carries one, its `claim_path`. The rank of the owning
+hit is used for either path. This keeps Claims out of the entity index while
+making their required provenance observable and scoreable. Value Claims remain
+separate assertion records. Opt-in graph expansion emits a value Claim as a
+subject-bound assertion hit (direction `assertion`) without inventing a graph
+node or relationship to its scalar value, allowing its path to satisfy an
+evaluation case.
+
 ### `graph.json`
 
 The graph exporter writes one object with exactly these top-level collections:
@@ -318,6 +328,13 @@ Graph expansion should normally be shallow, initially one hop. It should be
 weighted more strongly for relation-oriented questions such as teacher,
 student, lineage, founder, creator, or style membership. Expanding every query
 unconditionally would introduce unrelated neighboring entities.
+
+The first orchestration contract therefore exposes graph expansion as an
+explicit, default-disabled retrieval option. When enabled, expansion runs
+after direct backend retrieval or fusion and before the final cutoff. Result
+metadata and evaluation configuration record the applied graph policy. A
+future query classifier may select this option, but classification remains
+consumer policy until an evaluated domain-independent rule exists.
 
 ### Fusion and reranking
 
@@ -534,6 +551,7 @@ provisional executable name is `kb-retrieval`:
 
 ```bash
 kb-retrieval build
+kb-retrieval vector-build --index .retrieval --vector-index .retrieval-vectors
 kb-retrieval search "宮城長順の師は誰か"
 kb-retrieval context "剛柔流の成立を説明して"
 kb-retrieval eval
@@ -541,6 +559,9 @@ kb-retrieval inspect /people/miyagi-chojun.md
 ```
 
 Commands must support machine-readable JSON output and meaningful exit codes.
+`vector-build` uses the deterministic offline test embedder and is explicitly
+mechanics-only; production or consumer admission embeddings remain injectable
+through the Python API.
 After the API is stable, `kb rag` or another harness command may delegate to
 this executable, but that integration is not part of the core package.
 
@@ -549,9 +570,10 @@ this executable, but that integration is not part of the core package.
 The Okinawa karate `evals/rag-eval.yml` format is the initial acceptance
 corpus. Each entry has canonical fields `id`, `query`, `expected`, `evidence`,
 and optional `history`, `kind`, and `gap`. `expected` is a non-empty string
-preserved as descriptive metadata; `evidence` is the list of expected entity paths used for retrieval
-scoring. History and all unknown metadata are preserved but do not affect
-retrieval metrics.
+preserved as descriptive metadata; `evidence` is the list of expected document
+paths used for retrieval scoring. A path may be an entity/document path or a
+Claim path under the evidence-path contract above. History and all unknown
+metadata are preserved but do not affect retrieval metrics.
 
 For a query and direct-retrieval cutoff `k`, deduplicate expected evidence
 paths before scoring. Recall@k is the fraction of unique expected paths found
@@ -811,12 +833,19 @@ The following are now contract decisions, not deferred preferences:
 - passage/entity and relation/Claim provenance roles remain distinct;
 - JSON normalization and canonical chunk JSONL bytes are defined above;
 - the offline acceptance fixture and end-to-end test path are mandatory.
+- SQLite schema version 2 persists normalized lexical fields and indexed
+  character n-gram postings. Reopened `SQLiteIndex.search*` operations obtain
+  candidates from those tables before deterministic scoring; SQLite is not
+  merely a serialized snapshot cache.
+- graph expansion is explicit and default-disabled in core orchestration; it
+  runs after direct retrieval/fusion and before the final cutoff.
+- evaluation evidence paths include emitted Claim paths without making Claims
+  ordinary graph entities.
 
 The following remain intentionally open and should be settled with tests and
 measurements rather than preference:
 
 - character n-gram size and weighting;
-- SQLite FTS strategy versus a different embedded lexical engine;
 - exact RRF constants and graph-expansion weights beyond the confidence
   baseline;
 - long-section overlap and future subchunk identifiers;

@@ -141,9 +141,15 @@ class LexicalIndex:
                     "claims": tuple(
                         {
                             "claim_id": claim.claim_id,
+                            "claim_path": claim.claim_path,
                             "status": claim.status,
                             "confidence": claim.confidence,
                             "source_ids": claim.source_ids,
+                            "subject": claim.subject,
+                            "predicate": claim.predicate,
+                            "target": claim.target,
+                            "property": claim.property,
+                            "value": claim.value,
                         }
                         for claim in entity.claims
                     ),

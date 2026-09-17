@@ -92,9 +92,20 @@ class GraphIndex:
 
     def _add_claim(self, edges: dict[tuple[object, ...], _Edge], claim: Claim, default_source: str | None) -> None:
         source = claim.subject or default_source
-        if source is None or claim.predicate is None or claim.target is None:
-            return  # value Claims are retrievable/inspectable but not graph edges
-        edges.setdefault((source, claim.target, claim.predicate, claim.claim_path or claim.claim_id, True), _Edge(source, claim.target, claim.predicate, tuple(normalize_source_id(item, allow_empty=True) for item in claim.source_ids), claim=claim))
+        if source is None:
+            return
+        if claim.predicate is not None and claim.target is not None:
+            target = claim.target
+            predicate = claim.predicate
+        elif claim.property is not None:
+            # Value Claims are assertion records, not graph relationships. A
+            # subject self-target lets the expansion stage emit their evidence
+            # without inventing a node or a relationship to the scalar value.
+            target = source
+            predicate = claim.property
+        else:
+            return
+        edges.setdefault((source, target, predicate, claim.claim_path or claim.claim_id, True), _Edge(source, target, predicate, tuple(normalize_source_id(item, allow_empty=True) for item in claim.source_ids), claim=claim))
 
     @classmethod
     def from_snapshot(cls, snapshot: Snapshot, *, decay: float = 0.75, claim_decay: float = 0.5, confidence_weights: dict[str, float] | None = None) -> "GraphIndex":
@@ -157,6 +168,8 @@ class GraphIndex:
 
 
 def _neighbor(edge: _Edge, seed_path: str) -> tuple[str | None, str]:
+    if edge.claim is not None and edge.claim.property is not None and edge.source == seed_path:
+        return edge.source, "assertion"
     if edge.source == seed_path:
         return edge.target, "outgoing"
     if edge.target == seed_path:

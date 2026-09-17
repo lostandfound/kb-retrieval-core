@@ -1,12 +1,15 @@
 import pytest
 
 from kb_retrieval_core import (
+    Claim,
     Entity,
     Evidence,
+    GraphExpansionConfig,
     HybridRetriever,
     RRFConfig,
     RetrievalConfig,
     RetrievalError,
+    Relation,
     SearchHit,
     Snapshot,
 )
@@ -74,3 +77,32 @@ def test_orchestration_cutoffs_are_recorded_in_fusion_metadata():
     )
     result = HybridRetriever(_snapshot(), vector=vector).search("Alpha", config=config)
     assert result[0].evidence.metadata["rrf"]["backend_cutoffs"] == {"vector": 1}
+
+
+def test_graph_expansion_is_connected_but_default_disabled():
+    snapshot = Snapshot(entities=(
+        Entity("/a.md", "Person", "Alpha", source_ids=("a",), content="Alpha", relations=(Relation("teaches", "/b.md", source_path="/a.md"),)),
+        Entity("/b.md", "Person", "Beta", source_ids=("b",), content="Beta"),
+    ))
+    retriever = HybridRetriever(snapshot)
+    assert {hit.evidence.entity_path for hit in retriever.search("Alpha", top_k=2)} == {"/a.md"}
+    hits = retriever.search("Alpha", config=RetrievalConfig(top_k=2, graph=GraphExpansionConfig(enabled=True)))
+    assert {hit.evidence.entity_path for hit in hits} == {"/a.md", "/b.md"}
+    expanded = next(hit for hit in hits if hit.evidence.entity_path == "/b.md")
+    assert expanded.evidence.metadata["relation"]["direction"] == "outgoing"
+    assert expanded.evidence.metadata["graph_expansion"]["enabled"] is True
+
+
+def test_graph_expansion_preserves_incoming_claim_path():
+    claim = Claim(
+        claim_path="/claims/teaching.md", subject="/a.md", predicate="teaches",
+        target="/b.md", status="accepted", confidence="B", source_ids=("claim-source",),
+    )
+    snapshot = Snapshot(entities=(
+        Entity("/a.md", "Person", "Alpha", source_ids=("a",), content="Alpha"),
+        Entity("/b.md", "Person", "Beta", source_ids=("b",), content="Beta"),
+    ), claims=(claim,))
+    hits = HybridRetriever(snapshot).search("Beta", config=RetrievalConfig(top_k=2, graph=GraphExpansionConfig(enabled=True)))
+    expanded = next(hit for hit in hits if hit.evidence.entity_path == "/a.md")
+    assert expanded.evidence.metadata["relation"]["direction"] == "incoming"
+    assert expanded.evidence.metadata["claim_path"] == "/claims/teaching.md"

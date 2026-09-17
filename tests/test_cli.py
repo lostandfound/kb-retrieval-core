@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from kb_retrieval_core import Entity, SQLiteIndex, Snapshot
 from kb_retrieval_core.cli import main
 
 
@@ -49,6 +50,53 @@ def test_cli_build_search_inspect_and_eval(tmp_path: Path, capsys) -> None:
     evaluated = json.loads(capsys.readouterr().out)
     assert evaluated["recall_at_k"] == 1.0
     assert evaluated["mrr"] == 1.0
+    assert evaluated["snapshot_hash"] == built["manifest"]["source_hash"]
+    assert evaluated["package_identity"].startswith("kb-retrieval-core@")
+    assert evaluated["fusion_config"]["graph"]["enabled"] is False
+
+    assert main(["eval", "--index", str(index), "--k", "5"]) == 0
+    repeated = json.loads(capsys.readouterr().out)
+    for field in ("snapshot_hash", "evaluation_case_hash", "package_identity", "retrieval_mode", "k", "fusion_config"):
+        assert repeated[field] == evaluated[field]
+
+    assert main(["context", "teaches", "--index", str(index), "--top-k", "1"]) == 0
+    context = json.loads(capsys.readouterr().out)
+    assert context["command"] == "context"
+    assert context["packets"][0]["entity_path"] == "/entities/source.md"
+
+
+def test_cli_graph_expansion_emits_claim_provenance(tmp_path: Path, capsys) -> None:
+    index = tmp_path / ".retrieval"
+    assert main(_build_args(index)) == 0
+    capsys.readouterr()
+    assert main([
+        "search", "Target Person", "--index", str(index), "--top-k", "5",
+        "--expand-graph", "--graph-predicate", "teaches",
+    ]) == 0
+    searched = json.loads(capsys.readouterr().out)
+    graph_results = [item for item in searched["results"] if item["retriever"] == "graph.one-hop"]
+    assert graph_results
+    assert any(item["metadata"]["claim_path"] == "/claims/teaching.md" for item in graph_results)
+    assert all(item["metadata"]["graph_expansion"]["enabled"] is True for item in searched["results"])
+
+
+def test_context_cli_is_strict_by_default_and_non_strict_is_explicit(tmp_path: Path, capsys) -> None:
+    index = tmp_path / ".retrieval"
+    SQLiteIndex.build(
+        Snapshot(entities=(Entity("/a.md", "Term", "Alpha", source_ids=("missing",), content="# Intro\nAlpha"),)),
+        index,
+    ).close()
+
+    assert main(["context", "Alpha", "--index", str(index)]) == 2
+    strict = json.loads(capsys.readouterr().err)
+    assert "missing" in strict["error"]
+    assert strict["error"].endswith("'missing'")
+
+    assert main(["context", "Alpha", "--index", str(index), "--non-strict"]) == 0
+    non_strict = json.loads(capsys.readouterr().out)
+    assert non_strict["unresolved_source_ids"] == ["missing"]
+    unresolved = next(item for item in non_strict["packets"][0]["references"] if item["id"] == "missing")
+    assert unresolved["resolved"] is False
 
 
 def test_cli_reports_errors_as_json_and_nonzero(capsys, tmp_path: Path) -> None:

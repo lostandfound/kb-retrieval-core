@@ -40,3 +40,22 @@ def test_admission_requires_gap_improvement_and_vector_identities():
     rejected = compare_evaluations(baseline, incomplete, profile)
     assert rejected.admitted is False
     assert any("fingerprints" in item for item in rejected.diagnostics)
+
+
+def test_reproducible_lexical_reports_do_not_require_vector_fingerprints():
+    case = EvaluationCase("query", ("/a.md",), "q1")
+    kwargs = {
+        "k": 5,
+        "retrieval_mode": "lexical",
+        "snapshot_hash": "s" * 64,
+        "package_identity": "kb-retrieval-core@test",
+        "fusion_config": {"mode": "lexical", "graph": {"enabled": False}},
+    }
+    baseline = evaluate((case,), lambda query, top_k=5: (), **kwargs)
+    candidate = evaluate(
+        (case,),
+        lambda query, top_k=5: (SearchHit(Evidence("/a.md", "text"), 1.0, 1, "test"),),
+        **kwargs,
+    )
+    profile = EvaluationProfile("lexical", minimum_improvement=1.0, require_lexical_gap_success=False)
+    assert compare_evaluations(baseline, candidate, profile).admitted is True

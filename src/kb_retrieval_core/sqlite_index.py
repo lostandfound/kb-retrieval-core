@@ -14,17 +14,18 @@ import json
 import os
 import sqlite3
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 
 from ._normalization import normalize_json, normalize_source_id
 from .chunking import canonical_chunk_hash, chunk_snapshot
-from .lexical import DEFAULT_NGRAM_SIZE, LexicalIndex
+from .lexical import DEFAULT_NGRAM_SIZE, LexicalIndex, character_ngrams, normalize_text
 from .models import Claim, Chunk, Entity, Reference, Relation, Snapshot
 
 
-SQLITE_INDEX_FORMAT = 1
-_SCHEMA_VERSION = 1
+SQLITE_INDEX_FORMAT = 2
+_SCHEMA_VERSION = 2
 
 
 class SQLiteIndexError(ValueError):
@@ -158,13 +159,44 @@ class SQLiteIndex:
         return self._lexical
 
     def search_entities(self, query: str, top_k: int = 5):
-        return self.lexical.search_entities(query, top_k=top_k)
+        paths = self._lexical_candidates("entity", query, top_k)
+        if not paths:
+            return ()
+        entities = tuple(replace(item, relations=()) for item in self.snapshot.entities if item.entity_path in paths)
+        return LexicalIndex(Snapshot(entities=entities), ngram_size=self.ngram_size).search_entities(query, top_k=top_k)
 
     def search_chunks(self, query: str, top_k: int = 5):
-        return self.lexical.search_chunks(query, top_k=top_k)
+        chunk_ids = self._lexical_candidates("chunk", query, top_k)
+        if not chunk_ids:
+            return ()
+        chunks = tuple(item for item in self.snapshot.chunks if item.chunk_id in chunk_ids)
+        return LexicalIndex(Snapshot(entities=self.snapshot.entities, chunks=chunks), ngram_size=self.ngram_size).search_chunks(query, top_k=top_k)
 
     def search(self, query: str, top_k: int = 5):
-        return self.lexical.search(query, top_k=top_k)
+        return self.search_chunks(query, top_k=top_k)
+
+    def _lexical_candidates(self, record_kind: str, query: str, top_k: int) -> frozenset[str]:
+        if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k < 1:
+            raise ValueError("top_k must be a positive integer")
+        if not isinstance(query, str):
+            raise TypeError("query must be a string")
+        normalized = normalize_text(query)
+        if not normalized:
+            raise ValueError("query must not be empty after normalization")
+        grams = sorted(character_ngrams(normalized, self.ngram_size))
+        conditions = ["instr(f.normalized_value, ?) > 0"]
+        parameters: list[object] = [record_kind, normalized]
+        if grams:
+            placeholders = ",".join("?" for _ in grams)
+            conditions.append(f"g.gram IN ({placeholders})")
+            parameters.extend(grams)
+        rows = self._connection.execute(
+            "SELECT DISTINCT f.record_id FROM lexical_fields f "
+            "LEFT JOIN lexical_ngrams g ON g.field_id = f.field_id "
+            f"WHERE f.record_kind = ? AND ({' OR '.join(conditions)})",
+            parameters,
+        )
+        return frozenset(row[0] for row in rows)
 
     def matches_snapshot(self, snapshot: Snapshot) -> bool:
         """Return whether this derived index represents ``snapshot``."""
@@ -321,8 +353,20 @@ def _create_schema(connection: sqlite3.Connection) -> None:
           reference_id TEXT PRIMARY KEY, title TEXT NOT NULL, authors_json TEXT NOT NULL,
           year INTEGER, url TEXT, metadata_json TEXT NOT NULL, author TEXT
         );
+        CREATE TABLE IF NOT EXISTS lexical_fields (
+          field_id INTEGER PRIMARY KEY, record_kind TEXT NOT NULL, record_id TEXT NOT NULL,
+          field_name TEXT NOT NULL, field_ordinal INTEGER NOT NULL,
+          normalized_value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS lexical_ngrams (
+          field_id INTEGER NOT NULL, gram TEXT NOT NULL,
+          PRIMARY KEY (field_id, gram),
+          FOREIGN KEY (field_id) REFERENCES lexical_fields(field_id) ON DELETE CASCADE
+        );
         CREATE INDEX IF NOT EXISTS chunks_entity_path ON chunks(entity_path);
         CREATE INDEX IF NOT EXISTS relations_source_path ON relations(source_path);
+        CREATE INDEX IF NOT EXISTS lexical_fields_record ON lexical_fields(record_kind, record_id);
+        CREATE INDEX IF NOT EXISTS lexical_ngrams_gram ON lexical_ngrams(gram);
         """
     )
     connection.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
@@ -333,7 +377,7 @@ def _check_schema(connection: sqlite3.Connection) -> None:
         rows = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     except sqlite3.Error as exc:
         raise SQLiteIndexError(f"invalid SQLite database: {exc}") from exc
-    required = {"meta", "entities", "chunks", "relations", "claims", "references"}
+    required = {"meta", "entities", "chunks", "relations", "claims", "references", "lexical_fields", "lexical_ngrams"}
     present = {row[0] for row in rows}
     missing = sorted(required - present)
     if missing:
@@ -388,7 +432,7 @@ def _validate_counts(connection: sqlite3.Connection, manifest: Mapping[str, obje
 
 
 def _write_snapshot(connection: sqlite3.Connection, snapshot: Snapshot, ngram_size: int) -> None:
-    for table in ("meta", "entities", "chunks", "relations", "claims", '"references"'):
+    for table in ("lexical_ngrams", "lexical_fields", "meta", "entities", "chunks", "relations", "claims", '"references"'):
         connection.execute(f"DELETE FROM {table}")
     manifest = _manifest(snapshot, ngram_size)
     # The caller writes the authoritative ngram_size manifest; this copy in
@@ -401,12 +445,22 @@ def _write_snapshot(connection: sqlite3.Connection, snapshot: Snapshot, ngram_si
             "INSERT INTO entities VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (record["entity_path"], record["entity_type"], record["title"], record["description"], _json(record["tags"]), _json(record["aliases"]), _json(record["source_ids"]), record["content"], record["timestamp"], _json(record["metadata"]), _json(record["relations"]), _json(record["claims"])),
         )
+        _write_lexical_fields(connection, "entity", entity.entity_path, {
+            "title": (entity.title,), "aliases": entity.aliases,
+            "description": (entity.description or "",), "tags": entity.tags,
+            "entity_type": (entity.entity_type,), "content": (entity.content,),
+        }, ngram_size)
     for chunk in snapshot.chunks:
         record = _chunk_record(chunk)
         connection.execute(
             "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (record["chunk_id"], record["entity_path"], record["ordinal"], record["entity_type"], record["title"], record["heading"], record["text"], record["content_hash"], _json(record["tags"]), _json(record["source_ids"]), _json(record["relations"]), _json(record["metadata"])),
         )
+        _write_lexical_fields(connection, "chunk", chunk.chunk_id, {
+            "text": (chunk.text,), "heading": (chunk.heading or "",),
+            "title": (chunk.title,), "tags": chunk.tags,
+            "entity_type": (chunk.entity_type,),
+        }, ngram_size)
     for relation_id, relation in enumerate(snapshot.relations):
         record = _relation_record(relation)
         connection.execute(
@@ -426,6 +480,27 @@ def _write_snapshot(connection: sqlite3.Connection, snapshot: Snapshot, ngram_si
             "INSERT INTO \"references\" VALUES (?, ?, ?, ?, ?, ?, ?)",
             (record["reference_id"], record["title"], _json(record["authors"]), record["year"], record["url"], _json(record["metadata"]), record["author"]),
         )
+
+
+def _write_lexical_fields(
+    connection: sqlite3.Connection,
+    record_kind: str,
+    record_id: str,
+    fields: Mapping[str, tuple[str, ...]],
+    ngram_size: int,
+) -> None:
+    for field_name, values in fields.items():
+        for ordinal, value in enumerate(values):
+            normalized = normalize_text(value)
+            cursor = connection.execute(
+                "INSERT INTO lexical_fields(record_kind, record_id, field_name, field_ordinal, normalized_value) VALUES (?, ?, ?, ?, ?)",
+                (record_kind, record_id, field_name, ordinal, normalized),
+            )
+            field_id = cursor.lastrowid
+            connection.executemany(
+                "INSERT INTO lexical_ngrams(field_id, gram) VALUES (?, ?)",
+                ((field_id, gram) for gram in sorted(character_ngrams(normalized, ngram_size))),
+            )
 
 
 def _read_snapshot(connection: sqlite3.Connection) -> Snapshot:

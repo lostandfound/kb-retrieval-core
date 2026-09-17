@@ -5,6 +5,19 @@ import pytest
 from kb_retrieval_core import EvaluationCase, EvaluationError, EvaluationLoadError, Evidence, SearchHit, evaluate, load_evaluation_cases
 
 
+def test_claim_path_metadata_is_a_scoreable_evidence_path() -> None:
+    case = EvaluationCase("claim query", ("/claims/teaching.md",), "claim-case")
+    hit = SearchHit(
+        Evidence("/teacher.md", "claim evidence", metadata={"claim_path": "/claims/teaching.md"}),
+        1.0,
+        1,
+        "graph.one-hop",
+    )
+    result = evaluate((case,), lambda query, top_k=5: (hit,), k=5).results[0]
+    assert result.success is True
+    assert result.retrieved[0].evidence_paths == ("/teacher.md", "/claims/teaching.md")
+
+
 def _hit(path: str, rank: int, score: float = 1.0) -> SearchHit:
     return SearchHit(Evidence(path, f"evidence for {path}"), score, rank, "test")
 
