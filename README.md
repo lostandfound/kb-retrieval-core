@@ -92,12 +92,11 @@ vector retrieval は optional かつ default-disabled です。consumer が実�
 - [Issue breakdown](docs/ISSUES.md): 実装単位と完了条件
 - [RAG integration guide](docs/rag-integration.md): 公開API、Evidence Packet、Claim citationの統合契約
 
-現在はMilestone 4（retrieval integration contract）の完了前です。検索機能は
-利用できますが、別RAGアプリ向けの公開serialization契約、実効検索設定の完全な
-再現性、consumer regression profile、安定版監査が残っています。
+Milestone 4（retrieval integration contract）は完了しています。検索機能、公開
+serialization契約、実効検索設定の再現性、consumer regression profile、RAG統合契約
+を実装・検証済みです。
 
-安定版リリース前には `docs/architecture.md` のMilestone 4 completion gateと
-`docs/ISSUES.md` のIssue #10〜#14をすべて満たす必要があります。consumer-owned
+安定版監査の記録は`docs/release-audit-2026-09-18.md`にあります。consumer-owned
 admission profileに合格したconsumerだけがvector/hybridを既定有効化できます。
 
 ## License

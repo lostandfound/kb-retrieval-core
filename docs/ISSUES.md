@@ -60,7 +60,7 @@ independently from CLI flags.
 
 ## Issue #12: Add the initial-consumer regression profile
 
-**Status**: in progress (consumer profile added in `okinawa-karate-book@96bb55f`)
+**Status**: completed in `okinawa-karate-book@f428853`
 **Priority**: high
 **Dependencies**: Issues #10 and #11
 
@@ -69,17 +69,17 @@ evaluation contract, not Okinawa-specific ranking policy.
 
 **DoD**:
 
-- [ ] An external profile fixes snapshot, cases, cutoff, retrieval settings,
+- [x] An external profile fixes snapshot, cases, cutoff, retrieval settings,
       primary metric, tolerances, and permitted regressions.
-- [ ] Teacher/student, relation-Claim, value-Claim, enumeration, and general
+- [x] Teacher/student, relation-Claim, value-Claim, enumeration, and general
       regression categories are represented.
-- [ ] q001/q067/q068/q069 or equivalent maintained cases are captured.
-- [ ] Package CI remains domain-neutral and offline without the consumer KB.
-- [ ] Reports remain derived artifacts rather than KB source data.
+- [x] q001/q067/q068/q069 or equivalent maintained cases are captured.
+- [x] Package CI remains domain-neutral and offline without the consumer KB.
+- [x] Reports remain derived artifacts rather than KB source data.
 
 ## Issue #13: Document separate-RAG integration
 
-**Status**: in progress
+**Status**: completed in current working tree
 **Priority**: medium
 **Dependencies**: Issues #10 and #11
 
@@ -95,19 +95,19 @@ evaluation contract, not Okinawa-specific ranking policy.
 
 ## Issue #14: Perform the stable-release audit
 
-**Status**: planned
+**Status**: completed in current working tree
 **Priority**: high
 **Dependencies**: Issues #10–#13
 
 **DoD**:
 
-- [ ] Every Milestone 4 gate maps to a named package test or identified
+- [x] Every Milestone 4 gate maps to a named package test or identified
       consumer-owned check.
-- [ ] Supported Python and CLI/JSON contracts have compatibility classification
+- [x] Supported Python and CLI/JSON contracts have compatibility classification
       and release notes.
-- [ ] Version identity matches running source and built artifact.
-- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
-- [ ] Issue ledger, README status, package classifier, and release version agree
+- [x] Version identity matches running source and built artifact.
+- [x] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+- [x] Issue ledger, README status, package classifier, and release version agree
       before “implementation complete” is stated.
 
 ## Architecture audit follow-up (2026-09-17)
@@ -125,7 +125,7 @@ confirmed gaps are tracked here in correction order:
    revise the accepted persistence requirement with measured justification.
 6. [x] Add the `context` CLI command with strict-by-default source resolution.
 7. [x] Decide and implement or explicitly defer vector-sidecar CLI creation.
-8. [ ] Reconcile this ledger, README wording, and release status only after the
+8. [x] Reconcile this ledger, README wording, and release status only after the
    corresponding executable checks pass.
 
 The Claim-path decision is recorded in `docs/architecture.md`: evaluation
@@ -348,7 +348,7 @@ retrieval fully functional and default when vector dependencies are absent.
 - [x] Hybrid mode invokes all configured backends exactly once.
 - [x] Missing optional vector resources affect only modes that request them.
 - [x] Fused evidence passes existing context/provenance invariants.
-- [ ] Retrieval mode and complete fusion configuration are serialized.
+- [x] Retrieval mode and complete fusion configuration are serialized.
 - [x] `PYTHONPATH=src python3 -m pytest` passes.
 
 **Branch**: `feat/hybrid-retrieval`  
