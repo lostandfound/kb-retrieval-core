@@ -40,3 +40,23 @@ def test_consumer_contract_uses_only_public_exports_and_preserves_claim_provenan
     assert claim_packets[0].confidence
     assert claim_packets[0].relation_source_ids
     assert claim_packets[0].requires_hedging is True
+
+
+def test_consumer_contract_can_inject_a_vector_backend() -> None:
+    snapshot = load_snapshot(
+        FIXTURE / "content",
+        FIXTURE / "graph.json",
+        FIXTURE / "references.yml",
+    )
+
+    class EmptyVectorBackend:
+        def search(self, _query: str, *, top_k: int):
+            assert top_k == 5
+            return ()
+
+    retriever = build_retriever(snapshot, vector=EmptyVectorBackend())
+    hits = retriever.search(
+        "teaches",
+        config=RetrievalConfig(mode="hybrid", top_k=5),
+    )
+    assert hits

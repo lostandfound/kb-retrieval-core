@@ -33,7 +33,36 @@ SQLiteのテーブルやprivate helperを直接参照せず、同じ入力から
 
 graph expansionは明示的に有効化します。`top_k`は最終Evidence Packet数で、展開時のseed poolは内部で拡張されます。評価・監査のため、検索結果の`metadata.graph_expansion`と評価JSONの`fusion_config`を保存してください。
 
-vector/hybridを使う場合は、consumerがembedding fingerprintとsidecarの互換性を確認したうえで、`RetrievalConfig(mode="hybrid")`を選びます。lexical検索は外部サービスなしで動作するため、常に比較用baselineを残します。
+vector/hybridを使う場合は、`build_retriever(snapshot)`にvector backendを注入してから、`RetrievalConfig(mode="hybrid")`を選びます。sidecarのfingerprintとsnapshot/chunk hashがconsumerのembedderと一致することを確認してください。
+
+```python
+from kb_retrieval_core import (
+    SQLiteVectorSidecar,
+    VectorRetriever,
+    build_retriever,
+)
+
+sidecar = SQLiteVectorSidecar.open(vector_index_path)
+try:
+    # consumer_embedderは公開Embedder契約を実装し、sidecarの
+    # embedding_configと一致する設定を持つものを注入する。
+    vector = VectorRetriever(
+        snapshot,
+        sidecar,
+        consumer_embedder,
+        snapshot_hash=str(sidecar.manifest["snapshot_hash"]),
+        chunk_hash=str(sidecar.manifest["chunk_hash"]),
+    )
+    retriever = build_retriever(snapshot, vector=vector)
+    hits = retriever.search(
+        user_query,
+        config=RetrievalConfig(mode="hybrid", top_k=5),
+    )
+finally:
+    sidecar.close()
+```
+
+`consumer_embedder`はアプリ側の依存性注入対象です。`DeterministicTestEmbedder`はオフライン機構検証専用で、consumer admissionの品質根拠には使いません。lexical検索は外部サービスなしで動作するため、常に比較用baselineを残します。
 
 ## CitationとClaimの扱い
 
