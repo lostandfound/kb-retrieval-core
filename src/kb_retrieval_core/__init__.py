@@ -56,6 +56,7 @@ from .vector_retrieval import (
     VectorRetriever,
     build_vector_retriever,
 )
+from .rrf import FusionError, RRFConfig, fuse_entity_rankings
 
 __all__ = [
     "Claim", "Chunk", "Entity", "Evidence", "Reference", "Relation", "SearchHit", "Snapshot",
@@ -75,6 +76,7 @@ __all__ = [
     "VECTOR_SIDECAR_FORMAT", "SQLiteVectorSidecar", "VectorRecord", "VectorSidecarError",
     "canonical_vector_bytes",
     "VectorRetrievalError", "VectorRetriever", "build_vector_retriever",
+    "FusionError", "RRFConfig", "fuse_entity_rankings",
 ]
 
 __version__ = "0.1.0"
