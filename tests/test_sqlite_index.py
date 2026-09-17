@@ -64,10 +64,29 @@ def test_sqlite_index_accepts_database_file_path(tmp_path: Path) -> None:
     database = tmp_path / "custom.db"
     index = SQLiteIndex.build(_snapshot(), database, ngram_size=3)
     index.close()
+    assert (tmp_path / "custom.db.manifest.json").is_file()
     reopened = SQLiteIndex.open(database)
     assert reopened.ngram_size == 3
     assert reopened.search("teaches", top_k=1)[0].evidence.entity_path == "/entities/source.md"
     reopened.close()
+
+
+def test_database_file_paths_have_independent_sidecars(tmp_path: Path) -> None:
+    first_path = tmp_path / "first.db"
+    second_path = tmp_path / "second.db"
+    first = SQLiteIndex.build(_snapshot(), first_path, ngram_size=2)
+    first.close()
+    second = SQLiteIndex.build(_snapshot(), second_path, ngram_size=3)
+    second.close()
+
+    assert (tmp_path / "first.db.manifest.json").is_file()
+    assert (tmp_path / "second.db.manifest.json").is_file()
+    reopened_first = SQLiteIndex.open(first_path)
+    reopened_second = SQLiteIndex.open(second_path)
+    assert reopened_first.ngram_size == 2
+    assert reopened_second.ngram_size == 3
+    reopened_first.close()
+    reopened_second.close()
 
 
 def test_index_can_be_checked_against_source_snapshot(tmp_path: Path) -> None:
@@ -109,6 +128,34 @@ def test_failed_rebuild_keeps_previous_database_readable(tmp_path: Path, monkeyp
     reopened = SQLiteIndex.open(path)
     assert reopened.manifest == original_manifest
     assert reopened.search("teaches", top_k=1)
+    reopened.close()
+
+
+def test_manifest_commit_failure_rolls_back_database_and_sidecar(tmp_path: Path, monkeypatch) -> None:
+    path = tmp_path / ".retrieval"
+    original = SQLiteIndex.build(_snapshot(), path)
+    original_manifest = original.manifest
+    original.close()
+    changed_entity = replace(_snapshot().entities[0], content="changed content")
+    changed = replace(_snapshot(), entities=(changed_entity, *_snapshot().entities[1:]), chunks=())
+    real_replace = sqlite_index_module.os.replace
+    final_manifest = path / "manifest.json"
+    failure_injected = False
+
+    def fail_manifest_commit(source, destination):
+        nonlocal failure_injected
+        if Path(destination) == final_manifest and not failure_injected:
+            failure_injected = True
+            raise OSError("injected manifest commit failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(sqlite_index_module.os, "replace", fail_manifest_commit)
+    with pytest.raises(OSError, match="injected manifest commit failure"):
+        SQLiteIndex.build(changed, path)
+
+    reopened = SQLiteIndex.open(path)
+    assert reopened.manifest == original_manifest
+    assert reopened.matches_snapshot(_snapshot())
     reopened.close()
 
 

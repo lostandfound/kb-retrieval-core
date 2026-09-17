@@ -21,8 +21,17 @@ from .snapshot import load_snapshot
 from .sqlite_index import SQLiteIndex
 
 
+class _ArgumentError(ValueError):
+    pass
+
+
+class _JSONArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise _ArgumentError(message)
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="kb-retrieval", description="Deterministic offline knowledge-base retrieval")
+    parser = _JSONArgumentParser(prog="kb-retrieval", description="Deterministic offline knowledge-base retrieval")
     commands = parser.add_subparsers(dest="command", required=True)
 
     build = commands.add_parser("build", help="load source files and build a persistent SQLite index")
@@ -63,8 +72,8 @@ def _pretty_argument(parser: argparse.ArgumentParser) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
     try:
+        args = parser.parse_args(argv)
         if args.command == "build":
             result = _build(args)
         elif args.command == "search":
@@ -79,7 +88,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         _write_json(result, pretty=args.pretty)
         return 0
     except Exception as exc:
-        _write_json({"error": str(exc)}, stream=sys.stderr, pretty=getattr(args, "pretty", False))
+        _write_json(
+            {"error": str(exc)},
+            stream=sys.stderr,
+            pretty=getattr(locals().get("args"), "pretty", False),
+        )
         return 2
 
 

@@ -57,6 +57,18 @@ def test_cli_reports_errors_as_json_and_nonzero(capsys, tmp_path: Path) -> None:
     assert "does not exist" in error["error"]
 
 
+def test_cli_argument_errors_are_json(capsys, tmp_path: Path) -> None:
+    assert main(["build"]) == 2
+    missing_required = capsys.readouterr()
+    assert missing_required.out == ""
+    assert "required" in json.loads(missing_required.err)["error"]
+
+    assert main(["search", "query", "--index", str(tmp_path), "--top-k", "invalid"]) == 2
+    invalid_integer = capsys.readouterr()
+    assert invalid_integer.out == ""
+    assert "invalid int value" in json.loads(invalid_integer.err)["error"]
+
+
 def test_python_module_entrypoint_runs_offline(tmp_path: Path) -> None:
     environment = dict(os.environ)
     environment["PYTHONPATH"] = str(Path(__file__).parents[1] / "src")

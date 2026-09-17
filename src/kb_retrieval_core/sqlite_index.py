@@ -76,24 +76,36 @@ class SQLiteIndex:
         )
         os.close(descriptor)
         temporary_path = Path(temporary_name)
+        manifest_descriptor, temporary_manifest_name = tempfile.mkstemp(
+            prefix=f".{manifest_path.name}.", suffix=".tmp", dir=manifest_path.parent
+        )
+        os.close(manifest_descriptor)
+        temporary_manifest_path = Path(temporary_manifest_name)
         connection = sqlite3.connect(str(temporary_path))
         try:
             _create_schema(connection)
             _write_snapshot(connection, prepared, ngram_size)
             connection.commit()
+            _write_manifest(temporary_manifest_path, manifest)
         except Exception:
             connection.rollback()
             connection.close()
             temporary_path.unlink(missing_ok=True)
+            temporary_manifest_path.unlink(missing_ok=True)
             raise
         connection.close()
         try:
-            os.replace(temporary_path, database_path)
-            _write_manifest(manifest_path, manifest)
+            _replace_completed_index(
+                temporary_path,
+                database_path,
+                temporary_manifest_path,
+                manifest_path,
+            )
             connection = sqlite3.connect(str(database_path))
             _check_schema(connection)
         except Exception:
             temporary_path.unlink(missing_ok=True)
+            temporary_manifest_path.unlink(missing_ok=True)
             raise
         return cls(database_path, connection, manifest)
 
@@ -197,13 +209,55 @@ def _paths(value: str | Path, *, require_existing: bool = False) -> tuple[Path, 
     path = Path(value)
     if path.suffix.lower() in {".sqlite", ".db"}:
         database = path
-        manifest = path.with_name("manifest.json")
+        manifest = path.with_name(f"{path.name}.manifest.json")
     else:
         database = path / "index.sqlite"
         manifest = path / "manifest.json"
     if require_existing and (not database.is_file()):
         raise SQLiteIndexError(f"SQLite index does not exist: {database}")
     return database, manifest
+
+
+def _replace_completed_index(
+    temporary_database: Path,
+    database: Path,
+    temporary_manifest: Path,
+    manifest: Path,
+) -> None:
+    """Install a completed database/manifest pair, rolling back either failure."""
+
+    database_backup = _unused_temporary_path(database, ".backup")
+    manifest_backup = _unused_temporary_path(manifest, ".backup")
+    database_was_present = database.is_file()
+    manifest_was_present = manifest.is_file()
+    try:
+        if database_was_present:
+            os.replace(database, database_backup)
+        if manifest_was_present:
+            os.replace(manifest, manifest_backup)
+        os.replace(temporary_database, database)
+        os.replace(temporary_manifest, manifest)
+    except Exception:
+        database.unlink(missing_ok=True)
+        manifest.unlink(missing_ok=True)
+        if database_was_present and database_backup.is_file():
+            os.replace(database_backup, database)
+        if manifest_was_present and manifest_backup.is_file():
+            os.replace(manifest_backup, manifest)
+        raise
+    else:
+        database_backup.unlink(missing_ok=True)
+        manifest_backup.unlink(missing_ok=True)
+
+
+def _unused_temporary_path(target: Path, suffix: str) -> Path:
+    descriptor, name = tempfile.mkstemp(
+        prefix=f".{target.name}.", suffix=suffix, dir=target.parent
+    )
+    os.close(descriptor)
+    path = Path(name)
+    path.unlink()
+    return path
 
 
 def _manifest(snapshot: Snapshot, ngram_size: int) -> dict[str, object]:
