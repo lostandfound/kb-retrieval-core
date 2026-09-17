@@ -1,0 +1,14 @@
+{
+  "nodes": [
+    {"path": "/entities/source.md", "type": "Person", "title": "Source Person", "description": "A source entity for the acceptance fixture.", "tags": ["fixture"]},
+    {"path": "/entities/target.md", "type": "Person", "title": "Target Person", "description": "A target entity for the acceptance fixture.", "tags": ["fixture"]},
+    {"path": "/notes/example.md", "type": "Note", "title": "Fixture Note", "description": "A retrievable non-graph document.", "tags": ["fixture"]}
+  ],
+  "edges": [
+    {"source": "/entities/source.md", "predicate": "teaches", "target": "/entities/target.md", "confidence": "C"}
+  ],
+  "claims": [
+    {"path": "/claims/teaching.md", "subject": "/entities/source.md", "predicate": "teaches", "object": "/entities/target.md", "status": "proposed", "confidence": "D", "sources": ["ref:claim"]},
+    {"path": "/claims/year.md", "subject": "/entities/source.md", "property": "founded-year", "value": "1900", "status": "accepted", "confidence": "A", "sources": ["bare-source"]}
+  ]
+}

@@ -1,0 +1,14 @@
+book:
+  type: book
+  title: Fixture Book
+  author: Fixture Author
+  checked: 2026-01-02
+claim:
+  type: web
+  title: Fixture Claim Source
+  authors: [Claim Author]
+  url: https://example.test/claim
+bare-source:
+  type: book
+  title: Bare Fixture Source
+  authors: [Second Author]

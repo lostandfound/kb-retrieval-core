@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Domain-independent retrieval primitives for structured Markdown knowledge bases"
 readme = "README.md"
 requires-python = ">=3.10"
+dependencies = ["PyYAML>=6"]
 license = {text = "MIT"}
 authors = [{name = "lostandfound"}]
 classifiers = [

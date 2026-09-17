@@ -1,0 +1,9 @@
+- id: fixture-teaching
+  query: Source Person teaches Target Person
+  expected: The teaching relation is the expected evidence.
+  evidence: [/entities/source.md, /entities/target.md]
+  kind: relation
+  gap: null
+  history:
+    - date: 2026-01-02
+      verdict: OK
