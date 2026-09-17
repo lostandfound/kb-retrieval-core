@@ -102,7 +102,7 @@ provider.
 
 **Title**: `feat: add persistent SQLite vector sidecar`  
 **GitHub Issue**: not created  
-**Status**: implemented locally; pending review and commit
+**Status**: completed in `8ca998f`
 **Purpose**: Persist disposable vectors independently from the lexical SQLite
 index while detecting every incompatible or stale artifact.
 
@@ -138,7 +138,7 @@ index while detecting every incompatible or stale artifact.
 
 **Title**: `feat: implement deterministic vector retrieval`  
 **GitHub Issue**: not created  
-**Status**: implemented locally; pending review and commit
+**Status**: completed in `275a258`
 **Purpose**: Prove embedding and sidecar behavior independently before hybrid
 fusion can obscure vector-search defects.
 
