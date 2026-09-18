@@ -10,8 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterator, Sequence
 
 from ._normalization import normalize_json
 from ._version import __version__
@@ -43,7 +44,7 @@ def migrate_json_payload(payload: object) -> dict[str, object]:
         raise ValueError("CLI JSON payload must be an object")
     version = payload.get("schema_version", 0)
     if version == 0:
-        return {"schema_version": CLI_SCHEMA_VERSION, **payload}
+        return {**payload, "schema_version": CLI_SCHEMA_VERSION}
     if version == CLI_SCHEMA_VERSION:
         return dict(payload)
     raise ValueError(f"unsupported CLI schema version {version!r}; expected {CLI_SCHEMA_VERSION}")
@@ -205,16 +206,16 @@ def _vector_build(args: argparse.Namespace) -> dict[str, object]:
 
 def _search(args: argparse.Namespace) -> dict[str, object]:
     with SQLiteIndex.open(args.index_path) as index:
-        retriever = _cli_retriever(index, args)
-        hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
+        with _cli_retriever(index, args) as retriever:
+            hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
     return {"command": "search", "query": args.query, "results": [_hit_to_dict(hit) for hit in hits]}
 
 
 def _context(args: argparse.Namespace) -> dict[str, object]:
     with SQLiteIndex.open(args.index_path) as index:
-        retriever = _cli_retriever(index, args)
-        hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
-        report = assemble_context(hits, index.snapshot, strict=not args.non_strict)
+        with _cli_retriever(index, args) as retriever:
+            hits = retriever.search(args.query, config=_retrieval_config(args, args.top_k))
+            report = assemble_context(hits, index.snapshot, strict=not args.non_strict)
     return {"command": "context", "query": args.query, **report.to_dict()}
 
 
@@ -251,19 +252,19 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         if eval_path is None:
             raise ValueError("evaluation path is required (pass --eval-path or build with --eval-path)")
         cases = load_evaluation_cases(eval_path)
-        retriever = _cli_retriever(index, args)
-        vector_manifest = getattr(retriever, "vector_manifest", {})
-        report = evaluate(
-            cases,
-            lambda query, top_k=args.k: retriever.search(query, config=_retrieval_config(args, top_k)),
-            k=args.k,
-            retrieval_mode=args.mode,
-            snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))),
-            package_identity=_package_identity(),
-            embedding_fingerprint=vector_manifest.get("embedding_fingerprint"),
-            vector_index_fingerprint=vector_manifest.get("vector_index_fingerprint"),
-            fusion_config=_evaluation_config(args, retriever),
-        )
+        with _cli_retriever(index, args) as retriever:
+            vector_manifest = getattr(retriever, "vector_manifest", {})
+            report = evaluate(
+                cases,
+                lambda query, top_k=args.k: retriever.search(query, config=_retrieval_config(args, top_k)),
+                k=args.k,
+                retrieval_mode=args.mode,
+                snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))),
+                package_identity=_package_identity(),
+                embedding_fingerprint=vector_manifest.get("embedding_fingerprint"),
+                vector_index_fingerprint=vector_manifest.get("vector_index_fingerprint"),
+                fusion_config=_evaluation_config(args, retriever),
+            )
     return {"command": "eval", **_report_to_dict(report)}
 
 
@@ -308,13 +309,14 @@ def _package_identity() -> str:
     return f"kb-retrieval-core@{__version__}"
 
 
-def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetriever:
+@contextmanager
+def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> Iterator[HybridRetriever]:
     if args.mode == "lexical":
-        return HybridRetriever(index.snapshot, lexical=index)
+        yield HybridRetriever(index.snapshot, lexical=index)
+        return
     if args.vector_index is None:
         raise RetrievalError(f"retrieval mode {args.mode!r} requires --vector-index")
-    sidecar = SQLiteVectorSidecar.open(args.vector_index)
-    try:
+    with SQLiteVectorSidecar.open(args.vector_index) as sidecar:
         config_data = sidecar.manifest.get("embedding_config")
         if not isinstance(config_data, dict):
             raise RetrievalError("vector sidecar manifest has no embedding_config")
@@ -322,10 +324,7 @@ def _cli_retriever(index: SQLiteIndex, args: argparse.Namespace) -> HybridRetrie
         vector = VectorRetriever(index.snapshot, sidecar, embedder, snapshot_hash=str(index.manifest.get("snapshot_hash", index.manifest.get("source_hash", ""))), chunk_hash=str(index.manifest["chunk_hash"]))
         retriever = HybridRetriever(index.snapshot, lexical=index, vector=vector)
         retriever.vector_manifest = dict(sidecar.manifest)
-        return retriever
-    except Exception:
-        sidecar.close()
-        raise
+        yield retriever
 
 
 def _hit_to_dict(hit: SearchHit) -> dict[str, object]:

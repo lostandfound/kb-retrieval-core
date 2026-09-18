@@ -108,6 +108,7 @@ def test_cli_json_migrates_legacy_unversioned_envelope() -> None:
     legacy = {"command": "search", "query": "teaches", "results": []}
     migrated = migrate_json_payload(legacy)
     assert migrated == {"schema_version": 1, **legacy}
+    assert migrate_json_payload({"schema_version": 0, **legacy}) == migrated
     assert migrate_json_payload(migrated) == migrated
     with pytest.raises(ValueError, match="unsupported CLI schema version"):
         migrate_json_payload({"schema_version": 99})
