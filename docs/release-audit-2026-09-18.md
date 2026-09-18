@@ -25,7 +25,7 @@ clean
 
 ## Initial consumer gate
 
-The consumer-owned profile is `okinawa-karate-book@f428853`:
+The consumer-owned profile and CI gate are `okinawa-karate-book@0e76fa5`:
 `evals/retrieval-admission-profile.yml` and
 `tools/check_retrieval_admission.py`.
 
