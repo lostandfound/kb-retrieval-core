@@ -933,3 +933,17 @@ measurements rather than preference:
 
 Record any resolution in this document or an ADR before implementation makes
 it difficult to reverse.
+
+## Delivery roadmap
+
+The first consumer is the CLI-based RAG application. Its public retrieval and
+Evidence Packet behavior is the reference implementation and remains
+conformance-tested before additional consumers are added.
+
+The reusable boundary is the existing public search/context surface and its
+serialized evidence contracts. Consumer-facing citation resolution, answer
+validation, and prompting remain in the RAG application and are not duplicated
+in this core package.
+
+Once the reference CLI contracts are frozen, add one consumer surface at a
+time—Web UI, batch execution, or another CLI—using the same public contracts.
