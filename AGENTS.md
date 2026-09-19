@@ -1,6 +1,6 @@
 # Repository instructions
 
-Before changing retrieval behavior, read `docs/architecture.md` completely.
+Before changing retrieval behavior, read `docs/ARCHITECTURE.md` completely.
 It is the canonical record of the package boundary, input contract, provenance
 rules, and implementation sequence.
 

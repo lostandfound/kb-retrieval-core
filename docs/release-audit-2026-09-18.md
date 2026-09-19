@@ -1,6 +1,6 @@
 # Milestone 4 release audit (2026-09-18)
 
-This record maps the completion gate in `docs/architecture.md` to executable
+This record maps the completion gate in `docs/ARCHITECTURE.md` to executable
 checks. The temporary `docs/tmp/` audit material is not a release artifact.
 
 ## Package checks

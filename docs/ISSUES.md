@@ -2,7 +2,7 @@
 
 Project: `kb-retrieval-core` architecture completion
 Created: 2026-09-17  
-Canonical requirements: `docs/architecture.md`, Milestones 3 and 4
+Canonical requirements: `docs/ARCHITECTURE.md`, Milestones 3 and 4
 
 These are implementation issues, not yet-created GitHub issue numbers. Each
 issue is intended to fit within one to three working days and must preserve the
@@ -128,7 +128,7 @@ confirmed gaps are tracked here in correction order:
 8. [x] Reconcile this ledger, README wording, and release status only after the
    corresponding executable checks pass.
 
-The Claim-path decision is recorded in `docs/architecture.md`: evaluation
+The Claim-path decision is recorded in `docs/ARCHITECTURE.md`: evaluation
 recognizes both `entity_path` and emitted `claim_path`; Claims remain separate
 assertion records. Graph expansion is explicit and default-disabled.
 
@@ -446,7 +446,7 @@ Milestone 3 implementation completion auditable.
   optional embedding modules and model files are unavailable.
 - Add failure-path coverage for incompatible fingerprints, sidecar deletion,
   corrupt sidecars, and failed atomic rebuilds.
-- Update `docs/architecture.md` or an ADR with any implementation choice that
+- Update `docs/ARCHITECTURE.md` or an ADR with any implementation choice that
   resolves an intentionally open decision.
 
 **DoD**:
