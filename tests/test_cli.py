@@ -101,7 +101,12 @@ def test_cli_serialization_contract_is_stable_for_golden_commands(tmp_path: Path
 def test_cli_error_envelope_has_stable_schema_version(capsys, tmp_path: Path) -> None:
     assert main(["search", "query", "--index", str(tmp_path / "missing")]) == 2
     error = json.loads(capsys.readouterr().err)
-    assert error == {"schema_version": 1, "error": error["error"]}
+    assert error == {
+        "schema_version": 1,
+        "code": "sqlite_index_error",
+        "command": "search",
+        "error": error["error"],
+    }
 
 
 def test_cli_json_migrates_legacy_unversioned_envelope() -> None:

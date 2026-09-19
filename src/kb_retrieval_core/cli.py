@@ -18,6 +18,7 @@ from ._normalization import normalize_json
 from ._version import __version__
 from .chunking import chunk_snapshot, relation_to_dict
 from .context import assemble_context
+from .diagnostics import UsageError, diagnostic_code
 from .evaluation import EvaluationReport, evaluate, load_evaluation_cases
 from .models import Claim, Entity, Reference, Relation, SearchHit
 from .snapshot import load_snapshot
@@ -50,7 +51,7 @@ def migrate_json_payload(payload: object) -> dict[str, object]:
     raise ValueError(f"unsupported CLI schema version {version!r}; expected {CLI_SCHEMA_VERSION}")
 
 
-class _ArgumentError(ValueError):
+class _ArgumentError(UsageError):
     pass
 
 
@@ -152,11 +153,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         _write_json({"schema_version": CLI_SCHEMA_VERSION, **result}, pretty=args.pretty)
         return 0
     except Exception as exc:
-        _write_json(
-            {"schema_version": CLI_SCHEMA_VERSION, "error": str(exc)},
-            stream=sys.stderr,
-            pretty=getattr(locals().get("args"), "pretty", False),
-        )
+        parsed = locals().get("args")
+        envelope = {
+            "schema_version": CLI_SCHEMA_VERSION,
+            "code": diagnostic_code(exc),
+            "error": str(exc),
+        }
+        # A usage failure happens before the command is known; omit the field
+        # rather than reporting a command that never ran.
+        command = getattr(parsed, "command", None)
+        if isinstance(command, str):
+            envelope["command"] = command
+        _write_json(envelope, stream=sys.stderr, pretty=getattr(parsed, "pretty", False))
         return 2
 
 

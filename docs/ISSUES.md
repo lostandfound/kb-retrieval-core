@@ -110,6 +110,40 @@ evaluation contract, not Okinawa-specific ranking policy.
 - [x] Issue ledger, README status, package classifier, and release version agree
       before “implementation complete” is stated.
 
+## Issue #15: Add stable diagnostic codes to failure envelopes
+
+**Status**: completed in current working tree
+**Priority**: medium
+**Purpose**: The CLI error envelope carried only `schema_version` and a human
+message, so a consumer had to match on message text to distinguish a stale
+index from an unresolved source or a usage mistake. `kb-harness-core` already
+solves this with a structured `Diagnostic` carrying a stable `code`; this issue
+adopts the same convention without importing harness internals.
+
+**Implementation**:
+
+- Add `kb_retrieval_core.diagnostics` mapping each package error class to a
+  stable code, with coarse builtin fallbacks so an envelope always has a code.
+- Resolve the code through the exception MRO so a package error never falls
+  back to its builtin base.
+- Add `code` and, when the command is known, `command` to the CLI error
+  envelope as additive optional fields.
+- Export `diagnostic_code` and `DIAGNOSTIC_CODES` from the public surface and
+  document the contract in `docs/ARCHITECTURE.md` and the README.
+
+**DoD**:
+
+- [x] Every package error class has a documented code covered by a test.
+- [x] A package error resolves to its own code rather than `invalid_input`.
+- [x] Argument failures report `usage_error` and omit `command`.
+- [x] The error-envelope format change has an explicit updated contract test.
+- [x] `code` values are unique, lowercase, stable identifiers.
+- [x] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+
+**Branch**: `feat/diagnostic-codes`
+**Dependencies**: Issue #11
+**Labels**: `feat`, `priority: medium`
+
 ## Architecture audit follow-up (2026-09-17)
 
 The temporary implementation audit is not a canonical project record. Its

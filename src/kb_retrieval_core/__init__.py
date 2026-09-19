@@ -60,6 +60,7 @@ from .vector_retrieval import (
 )
 from .rrf import FusionError, RRFConfig, fuse_entity_rankings
 from .retrieval import GraphExpansionConfig, HybridRetriever, RetrievalConfig, RetrievalError, build_retriever
+from .diagnostics import DIAGNOSTIC_CODES, UsageError, diagnostic_code
 
 __all__ = [
     "Claim", "Chunk", "Entity", "Evidence", "Reference", "Relation", "SearchHit", "Snapshot",
@@ -81,4 +82,5 @@ __all__ = [
     "VectorRetrievalError", "VectorRetriever", "build_vector_retriever",
     "FusionError", "RRFConfig", "fuse_entity_rankings",
     "GraphExpansionConfig", "HybridRetriever", "RetrievalConfig", "RetrievalError", "build_retriever",
+    "DIAGNOSTIC_CODES", "UsageError", "diagnostic_code",
 ]

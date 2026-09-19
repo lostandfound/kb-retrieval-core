@@ -840,6 +840,11 @@ and listed in the README. Supported CLI commands are `build`, `vector-build`,
 `search`, `context`, `inspect`, and `eval`, including their JSON success and
 error envelopes. Every CLI success and error envelope carries
 `schema_version: 1`; additive fields are compatible within a major version.
+Every error envelope additionally carries a stable `code` from
+`kb_retrieval_core.diagnostics` and, once the command is known, the `command`
+that failed. A consumer classifies failures by `code`; `error` is a human
+message whose wording is not a contract. A new code may appear in a minor
+release, but an existing code never changes meaning.
 Stable serialized artifacts are lexical/vector manifests,
 search evidence, context packets, and evaluation reports. Private helpers,
 SQLite table layout, and test embedders are not application contracts.

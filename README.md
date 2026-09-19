@@ -49,6 +49,8 @@ kb-retrieval eval --index .retrieval --mode lexical
 
 すべての出力は `schema_version: 1` を含む JSON です。構文エラー、入力エラー、未構成の vector resource は stderr に同じ schema version の JSON 診断を出し、非ゼロ終了します。
 
+エラー診断は安定した `code`（例 `snapshot_load_error`、`sqlite_index_error`、`usage_error`）と、コマンドが確定している場合は `command` を含みます。consumer は `error` のメッセージ文字列ではなく `code` で分岐してください。コードの一覧は `kb_retrieval_core.DIAGNOSTIC_CODES` です。
+
 vector / hybrid mode は、あらかじめ作成した SQLite vector sidecar を `--vector-index` で指定します。sidecar の manifest に保存された embedding configuration と lexical index の hash が検証されます。
 
 オフラインの仕組み検証用 sidecar はCLIから構築できます。このコマンドは
@@ -83,6 +85,7 @@ vector retrieval は optional かつ default-disabled です。consumer が実�
 - `HybridRetriever`, `RetrievalConfig`
 - `evaluate`, `EvaluationProfile`, `compare_evaluations`
 - `assemble_context`
+- `diagnostic_code`, `DIAGNOSTIC_CODES`
 
 検索結果は entity path、section、passage source IDs、適用された relation / Claim の status・confidence・path を保持します。Claim path は entity path と同様に評価可能な evidence path です。グラフ展開は明示的な `--expand-graph` 指定時だけ実行され、適用設定が結果に記録されます。source IDs は内部で bare ID に正規化され、context assembly が references と解決します。
 
