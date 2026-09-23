@@ -91,7 +91,7 @@ vector retrieval は optional かつ default-disabled です。consumer が実�
 
 ## 設計資料とリリース基準
 
-- [Architecture implementation direction](docs/ARCHITECTURE.md): package boundary、provenance、実装順序、Milestone 3 acceptance gate
+- [Architecture](docs/ARCHITECTURE.md): package boundary、入力・出力契約、provenance、互換性方針、vector/hybrid の採用条件
 - [Issue breakdown](docs/ISSUES.md): 実装単位と完了条件
 - [RAG integration guide](docs/rag-integration.md): 公開API、Evidence Packet、Claim citationの統合契約
 

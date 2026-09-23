@@ -1,21 +1,23 @@
-# Architecture and implementation direction
+# Architecture and package contract
 
-Status: accepted starting design  
-Last updated: 2026-09-17
+Status: current package contract; Milestone 4 is complete.
+Last updated: 2026-09-24
 
 ## Purpose
 
-This document is the canonical starting point for future development sessions.
-It records the intended package boundary, retrieval design, provenance rules,
-and implementation order for `kb-retrieval-core`.
+This document is the canonical record of the package boundary, input and
+output contracts, compatibility rules, provenance requirements, and vector
+admission policy for `kb-retrieval-core`. The completed implementation history
+and its checks are recorded in [`ISSUES.md`](ISSUES.md) and the
+[Milestone 4 release audit](release-audit-2026-09-18.md).
 
 The intended reader is a contributor who understands Python and retrieval
-systems but has no access to the conversation that created this repository.
+systems and needs the package contract without relying on chat history.
 
 `kb-retrieval-core` is a domain-independent retrieval foundation. It transforms
 a validated, structured Markdown knowledge base into ranked,
-source-addressable evidence. It is not the application that asks an LLM to
-write an answer.
+source-addressable evidence. An Evidence Packet is the serializable retrieval
+result with its text and provenance. This package does not generate answers.
 
 ## Context from the first consumer
 
@@ -41,7 +43,8 @@ would add operational cost without solving a demonstrated problem.
 Markdown KB (source of truth)
   |
   +-- kb-ontology-core
-  |     Claim, predicate, property, and type constraints
+  |     Claim (a separately sourced assertion with status and confidence),
+  |     predicate, property, and type constraints
   |
   +-- kb-harness-core
   |     authoring, validation, graph.json generation, and synchronization
@@ -75,8 +78,9 @@ shared contract after the duplication is demonstrated.
 
 ## Source data and derived data
 
-Markdown remains the source of truth. `graph.json`, SQLite indexes, and vector
-files are derived artifacts. They must be safe to delete and reproduce.
+Markdown remains the source of truth. `graph.json`, SQLite indexes, and the
+separate SQLite vector sidecar (a disposable database for vectors) are derived
+artifacts. They must be safe to delete and reproduce.
 
 The initial snapshot loader should accept explicit paths for:
 
@@ -93,8 +97,8 @@ the harness's responsibility.
 
 The loader consumes the public interchange produced by `kb-harness-core`; it
 does not import harness implementation modules. The following schemas are the
-contract for Milestone 1. Additional fields may be retained as metadata, but
-the fields below have stable meaning.
+package input contract. Additional fields may be retained as metadata, but the
+fields below have stable meaning.
 
 ### Entity Markdown and YAML frontmatter
 
@@ -127,7 +131,7 @@ frontmatter, and `sections` are body headings. `aliases`, `relations`, and
 domain fields are optional. Whether `sources` is required for an ordinary
 document is owned by `vocabulary.yml` (`types.<type>.sources_required`, true by
 default) and is enforced by the harness before retrieval. Because the
-Milestone 1 loader does not consume the vocabulary, it validates `sources`
+loader does not consume the vocabulary, it validates `sources`
 when present but must not reject an otherwise valid source-less document.
 Claim sources remain unconditionally required by the public Claim contract.
 `Index` documents are excluded from retrieval and graph export. Non-Index,
@@ -265,28 +269,9 @@ the explicit source value: strict context assembly raises an unresolved-source
 error, while non-strict assembly retains it as `resolved: false` diagnostic
 metadata. Missing IDs are therefore never silently discarded.
 
-## Target package layout
-
-The names below describe responsibilities, not a requirement to create empty
-modules before their behavior is implemented.
-
-```text
-src/kb_retrieval_core/
-  models.py         stable Document, Chunk, SearchHit, and Evidence models
-  snapshot.py       Markdown, graph, and reference loading
-  chunking.py       deterministic heading-aware chunking
-  lexical.py        Japanese-capable lexical retrieval
-  embeddings.py     optional embedding and vector adapters
-  graph_search.py   relation and Claim-aware neighborhood expansion
-  retrieval.py      orchestration, fusion, and reranking
-  context.py        evidence packet assembly
-  evaluation.py     Recall@k, MRR, and evaluation-file support
-  cli.py            standalone command-line interface
-```
-
 ## Retrieval pipeline
 
-The target pipeline is hybrid:
+The retrieval pipeline supports lexical search and optional hybrid retrieval:
 
 ```text
 query
@@ -312,15 +297,36 @@ provide weaker structured signals.
 ### Lexical passage retrieval
 
 Chunks are searched separately from entities. Japanese search must not assume
-that whitespace tokenization is useful. The first implementation may use
-deterministic character n-grams. A morphological tokenizer or BM25 backend can
-be introduced behind an interface after evaluation demonstrates the need.
+whitespace tokenization is useful. The current implementation uses
+deterministic character n-grams. A different lexical method requires evidence
+from evaluation and must preserve deterministic offline retrieval.
 
 ### Vector retrieval
 
 Vector search is optional. The package must remain usable and testable without
-network access, an embedding API, or a dedicated vector database. Persist the
-embedding model identifier and vector dimension whenever embeddings are built.
+network access, an embedding API, or an embedding dependency. Package-owned
+`embed_documents` and `embed_query` operations return finite fixed-dimension
+vectors without exposing provider response objects. Document and query task
+settings are recorded separately for asymmetric models. `embed_documents`
+receives ordered inputs and returns exactly one vector per input in the same
+order; duplicate IDs, missing or extra results, and reordered results are
+rejected. The canonical configuration records provider or implementation,
+model and revision, tokenizer or preprocessing, pooling, normalization, and
+dimension;
+its canonical JSON hash is the embedding fingerprint. A separate vector-index
+fingerprint also includes similarity metric and vector-format version. The
+lexical package must not initialize an embedding implementation or load model
+files during import or lexical retrieval.
+
+The local vector store is a disposable, versioned SQLite sidecar keyed to the
+lexical snapshot and chunk hash. It stores chunk IDs and content hashes,
+vectors, embedding and vector-index fingerprints, metric, dimension, and
+format version. Its manifest must agree with the manifest stored in SQLite;
+incompatible identities require rebuilding. Atomic replacement and sidecar
+deletion or corruption must leave lexical retrieval usable. A deterministic
+test embedder and canonical configuration produce byte-equivalent vector
+artifacts and identical rankings for identical ordered inputs. External vector
+adapters expose the same manifest semantics.
 
 ### Graph expansion
 
@@ -354,10 +360,16 @@ domain predicate names or query language.
 
 ### Fusion and reranking
 
-Reciprocal Rank Fusion is the preferred simple baseline because it combines
-ranked lists without assuming comparable backend scores. Any later learned or
-model-based reranker must be optional and evaluated against the deterministic
-baseline.
+Reciprocal Rank Fusion combines rankings without assuming comparable backend
+scores. Before fusion, passage and vector lists contribute at most one
+candidate per entity, using that entity's highest-ranked chunk. Entity-only
+hits contribute their entity rank; when no passage backend contributes, their
+evidence falls back to the entity description or lowest-ordinal chunk. The
+selected evidence retains section, chunk ID, text, and passage sources using a
+documented backend precedence. Entity path breaks final ties. RRF constant,
+backend weights and cutoffs, and passage precedence are serialized as fusion
+configuration. Any learned or model-based reranker remains optional and is
+evaluated against the deterministic baseline.
 
 ## Chunk contract
 
@@ -496,11 +508,11 @@ sources for a Claim. It must never substitute the target entity's sources as
 support for the relationship. A packet may carry both roles separately so a
 consumer can cite the passage and the graph assertion independently.
 
-A target evidence packet is:
+A context packet is the JSON evidence object assembled for a consumer:
 
 ```json
 {
-  "statement": "宮城長順は東恩納寛量に師事したとされる",
+  "text": "宮城長順は東恩納寛量に師事したとされる",
   "entity_path": "/people/miyagi-chojun.md",
   "section": "経歴",
   "source_ids": ["miyagi-1936"],
@@ -532,54 +544,39 @@ final prose. A downstream application should be able to enforce:
 
 ## Persistence
 
-The first production-capable backend should use SQLite unless measurement shows
-that it is insufficient.
+The version 2 lexical index uses SQLite. It stores entities, chunks, relations, Claims,
+references, lexical postings, and source-content hashes. Character n-gram
+postings are persisted and reopened searches retrieve candidates from those
+postings before deterministic scoring; SQLite is not merely a serialized
+snapshot cache.
 
 ```text
 .retrieval/
   index.sqlite
   manifest.json
-  embeddings.npy    # present only when vector retrieval is enabled
+.retrieval-vectors/             # optional, disposable sidecar
+  vector.sqlite
+  vector-manifest.json
 ```
 
-The directory name is `.retrieval`, not `.rag`, because answer generation is
-outside this package.
+The lexical and vector indexes are separate derived artifacts. Unsupported schema
+versions and mutually inconsistent manifests fail with actionable errors. Identical
+source inputs produce identical manifests; source or chunk-hash changes are
+detected by `needs_rebuild`. Rebuilding replaces stale derived records, and a
+failed rebuild leaves the last completed database readable. Build/open
+round-trips preserve normalized entity, chunk, relation, both Claim forms,
+reference, and provenance data. Reopened SQLite search returns the same deterministic results
+as a freshly built index, including Japanese queries that do not rely on word
+boundaries or whitespace. No runtime mutation may add knowledge absent from the
+source KB.
 
-The index is expected to represent:
+## CLI boundary
 
-- entities;
-- chunks;
-- relations;
-- Claims;
-- references;
-- a lexical index;
-- source content hashes;
-- embedding model metadata when applicable.
-
-The manifest should identify the index format version and every source input
-needed to decide whether a rebuild is required. No runtime mutation of the
-index may become knowledge that is absent from the source KB.
-
-## CLI direction
-
-Keep the CLI independent of the `kb` command while the API is evolving. The
-provisional executable name is `kb-retrieval`:
-
-```bash
-kb-retrieval build
-kb-retrieval vector-build --index .retrieval --vector-index .retrieval-vectors
-kb-retrieval search "宮城長順の師は誰か"
-kb-retrieval context "剛柔流の成立を説明して"
-kb-retrieval eval
-kb-retrieval inspect /people/miyagi-chojun.md
-```
-
-Commands must support machine-readable JSON output and meaningful exit codes.
-`vector-build` uses the deterministic offline test embedder and is explicitly
-mechanics-only; production or consumer admission embeddings remain injectable
+The CLI remains independent of the `kb` command. Supported commands, flags,
+JSON output, and exit behavior are listed in the [README](../README.md).
+`vector-build` uses the deterministic offline test embedder for mechanics
+checks only. Production and consumer-admission embeddings remain injectable
 through the Python API.
-After the API is stable, `kb rag` or another harness command may delegate to
-this executable, but that integration is not part of the core package.
 
 ## Evaluation
 
@@ -593,7 +590,9 @@ metadata are preserved but do not affect retrieval metrics.
 
 For a query and direct-retrieval cutoff `k`, deduplicate expected evidence
 paths before scoring. Recall@k is the fraction of unique expected paths found
-in the first `k` returned entity paths; the reported aggregate is a macro
+among the evidence paths attached to the first `k` ranked hits. A hit supplies
+its entity path and, when applicable, its Claim path; both are scored at the
+owning hit's rank. The reported aggregate is a macro
 average over queries (queries with no expected paths are invalid). A query is a
 success only when every expected path appears within the first `k`. MRR is the
 reciprocal of the rank of the first relevant returned path, or zero if none is
@@ -606,349 +605,113 @@ success, and macro aggregates separated by `kind` when present. Evaluation
 must work without an LLM. Answer-quality evaluation belongs to the consuming
 application.
 
-## Milestone 1 acceptance fixture and executable checks
+## Verification and implementation record
 
-The repository acceptance fixture is intentionally small and domain-neutral:
+Milestones 1–4 are complete. Their implementation tasks and acceptance checks
+are recorded in [`ISSUES.md`](ISSUES.md); the release audit maps the final
+gate to its tests and records the verification results. Keep these records as
+the history of completed work rather than as a future implementation plan.
 
-```text
-tests/fixtures/acceptance/
-  content/
-    entities/source.md
-    entities/target.md
-    claims/teaching.md
-    index.md                 # excluded from retrieval and graph
-    notes/example.md         # retrievable passage, not a graph node
-  graph.json                  # nodes, edges, and separate claims
-  references.yml              # at least one resolved and one pending source
-  evals/rag-eval.yml          # fields id/query/expected/evidence/kind/gap
-```
+The offline regression suite protects the package contracts above. It exercises
+a domain-neutral KB from snapshot loading through deterministic chunking,
+lexical retrieval, graph expansion, strict context serialization, and
+Recall@k/MRR evaluation. It checks imports without network access or
+`kb-harness-core`, distinct passage and assertion provenance, strict and
+non-strict unresolved sources, canonical chunk bytes and hashes, and direct
+retrieval cutoff semantics. Tests must not depend on wall-clock timestamps,
+filesystem traversal order, locale, or network access.
 
-The fixture must include an ordinary relation with confidence `C`, a Claim
-with relation form and `D` confidence, a Claim with value form, a non-graph
-document, and source entries using both `ref: ID` and bare `ID` spellings. The
-acceptance test is executable offline and follows this exact path:
+Vector checks cover offline embedding protocol validation, including ordered
+input/cardinality and duplicate, missing, extra, or reordered result rejection;
+stable fingerprints and byte-equivalent artifacts; sidecar round trips and
+incompatibility detection; failed rebuild and deletion isolation from lexical
+retrieval; source provenance through vector and fused hits; and deterministic
+cutoff and fusion behavior. CLI checks cover
+explicit default-disabled vector use, serialized effective settings, and stable
+JSON diagnostics. The [release audit](release-audit-2026-09-18.md) identifies
+the named tests for these checks and the consumer regression profile.
 
-```text
-load Markdown + graph.json + references.yml
-  -> normalize source IDs and build Snapshot
-  -> deterministic heading-aware chunks
-  -> lexical search with a fixed query and cutoff
-  -> selective one-hop graph expansion
-  -> strict context assembly and JSON serialization
-  -> evaluation loading and Recall@5/MRR
-```
+## Public integration contract
 
-Required tests include: importing the package with network access disabled and
-without `kb-harness-core` on `sys.path`; loading the fixture end to end;
-asserting passage versus relation/Claim source roles; asserting strict and
-explicit non-strict unresolved-source behavior; serializing context with
-`json.dumps`; rebuilding chunks twice and comparing canonical JSONL bytes and
-hashes byte-for-byte; and verifying direct-retrieval cutoff and metric
-semantics. No test may depend on wall-clock timestamps, filesystem traversal
-order, locale, or network access.
-
-## Implementation sequence
-
-### Milestone 1: deterministic lexical baseline
-
-This is the next implementation target. Do not connect an LLM yet.
-
-1. Define snapshot, entity, chunk, relation, Claim, and reference models.
-2. Load a validated KB snapshot without importing harness internals.
-3. Implement deterministic heading-aware chunking.
-4. Implement Japanese-capable lexical entity and chunk search.
-5. Implement selective one-hop relation expansion.
-6. Read `evals/rag-eval.yml` and calculate Recall@5 and MRR.
-7. Return evidence and resolved source metadata as JSON, retaining separate
-   passage/entity and relation/Claim source roles.
-8. Run the executable acceptance fixture and deterministic serialization checks.
-
-Acceptance criteria:
-
-- rebuilding identical inputs produces byte-equivalent canonical UTF-8 JSONL
-  chunk records and hashes, with no timestamps;
-- the package runs without network access;
-- every hit retains entity, section, passage sources, and applicable relation or
-  Claim sources;
-- Claim status and opaque A/B/C/D-style confidence survive loading and
-  retrieval without retrieval redefining ontology validity;
-- ordinary relation confidence is retained and ranked while `claim_status`
-  remains null;
-- source IDs normalize to bare IDs and strict mode never silently drops an
-  unresolved URL or free-text source;
-- evaluation failures identify the query and retrieved paths, and metrics obey
-  unique-path macro Recall@k, first-relevant MRR, and direct cutoffs;
-- all behavior is covered by repository tests.
-
-### Milestone 2: persistent SQLite index
-
-1. Add a versioned SQLite schema and manifest.
-2. Persist entity, chunk, graph, Claim, and reference data.
-3. Add lexical indexing suitable for Japanese text.
-4. Rebuild safely when source or format hashes change.
-5. Add `build`, `search`, `inspect`, and `eval` CLI commands.
-
-Milestone 2 is accepted only when executable offline tests verify all of the
-following:
-
-- the manifest and SQLite database carry explicit format and schema versions,
-  and opening an unsupported or mutually inconsistent version fails with an
-  actionable error;
-- entity, deterministic chunk, relation, both Claim forms, reference, and
-  provenance fields survive a build/open round trip after canonical JSON
-  normalization;
-- reopened SQLite indexes return the same deterministic lexical results as the
-  freshly built index, including a Japanese query that does not rely on word
-  boundaries or whitespace;
-- identical source inputs produce identical manifests, while a source-content
-  or chunk-hash change is detected by `needs_rebuild`;
-- rebuilding replaces stale derived rows, and a failure before replacement
-  leaves the previously completed database readable;
-- the sidecar manifest is reproducible from the manifest stored in SQLite;
-  disagreement between them is rejected rather than silently selecting one;
-- `build`, `search`, `inspect`, and `eval` each run against the acceptance
-  fixture, emit JSON, require no network or LLM, and return a non-zero status
-  with a JSON diagnostic for invalid input.
-
-### Milestone 3: optional vector retrieval
-
-1. Define embedding and vector-store protocols.
-2. Add one local or injectable reference implementation.
-3. Persist model identity and dimension.
-4. Fuse lexical, entity, and vector rankings with RRF.
-5. Admit the feature only when evaluation shows value over the lexical
-   baseline.
-
-Milestone 3 has two separate gates. The implementation gate belongs to this
-repository and must be executable offline. The admission gate belongs to each
-consumer KB and decides whether that consumer enables hybrid retrieval by
-default. Passing the implementation gate may therefore ship an experimental,
-default-disabled vector feature without claiming that it improves retrieval.
-
-Implement Milestone 3 in this order so the optional boundary is testable before
-ranking behavior changes:
-
-1. Define package-owned embedding and vector-store protocols. The embedding
-   boundary distinguishes ordered `embed_documents` input from `embed_query`
-   input because asymmetric models may use different encoders or task prefixes.
-   Both operations return finite, fixed-dimension vectors and never expose an
-   SDK-specific response object.
-2. Define a canonical embedding configuration containing provider or
-   implementation identity, model name and revision, document and query task
-   settings, tokenizer or preprocessing identity, pooling, normalization, and
-   dimension. Hash its canonical JSON representation as the
-   `embedding_fingerprint`. Define a separate vector-index fingerprint that also
-   includes similarity metric and vector-format version.
-3. Add a deterministic injected implementation for offline tests, then one
-   local or injectable reference implementation. Importing and running the
-   lexical package must not import an embedding SDK, load model files, contact a
-   network, or initialize a model.
-4. Implement the local reference vector store as a separate, disposable,
-   versioned SQLite sidecar keyed to the lexical index snapshot and chunk hash.
-   It stores chunk ID, chunk content hash, vector, embedding fingerprint,
-   similarity metric, dimension, and vector-format version. It is built with
-   atomic replacement, may be deleted without damaging lexical retrieval, and
-   is never treated as source data. External vector-store adapters must expose
-   the same manifest semantics even when their physical storage differs.
-5. Implement vector chunk retrieval independently before adding fusion. It
-   returns the same source-addressable `SearchHit` and `Evidence` contracts as
-   lexical retrieval.
-6. Normalize backend rankings to one fusion candidate per `entity_path` before
-   applying Reciprocal Rank Fusion. For passage and vector rankings, the
-   highest-ranked chunk for an entity supplies that backend's rank and retained
-   passage. An entity-only hit contributes its entity rank; if no passage
-   backend contributes, evidence falls back to the entity description or its
-   lowest-ordinal chunk. After fusion, select the highest-ranked contributing
-   passage using a documented backend precedence and retain its section, chunk
-   ID, text, and passage sources. Use `entity_path` as the final tie-breaker.
-   Record the RRF constant, backend weights, backend cutoffs, and passage
-   precedence as fusion configuration.
-7. Extend evaluation reports with retrieval mode, snapshot hash,
-   evaluation-case hash, cutoff, package commit or release identity, embedding
-   and vector-index fingerprints when applicable, and the complete fusion
-   configuration.
-
-#### Milestone 3 implementation acceptance
-
-Milestone 3 implementation is accepted when repository-owned executable offline
-tests verify all of the following:
-
-- package import, snapshot loading, SQLite build, lexical search, and lexical
-  evaluation still work when no embedding implementation, model files, vector
-  store, network, or optional embedding dependency is available;
-- protocol tests reject non-finite values, inconsistent dimensions, missing or
-  extra results, duplicate chunk IDs, and document-result reordering with
-  actionable diagnostics, while independently exercising document and query
-  embedding paths;
-- identical ordered text, canonical configuration, and deterministic test
-  embedder produce identical fingerprints, byte-equivalent vector artifacts,
-  and identical vector rankings;
-- reopening a vector sidecar preserves its fingerprints, metric, dimension,
-  chunk IDs, content hashes, and vector values; a snapshot, chunk-content,
-  embedding-fingerprint, metric, dimension, or format mismatch is an explicit
-  rebuild condition and never silently reuses stale vectors;
-- vector-sidecar deletion, corruption, and failed rebuild leave the lexical
-  SQLite index readable and searchable;
-- vector hits and fused hits preserve entity path, section, selected chunk ID,
-  passage source IDs, and applicable relation or Claim provenance without
-  substituting target-entity sources for assertion sources;
-- vector-only retrieval has deterministic cutoffs and ordering, and fusion has
-  deterministic behavior for several chunks from one entity, duplicate backend
-  candidates, equal fused scores, entity-only hits, empty optional inputs, and
-  different backend score scales;
-- CLI exposure makes vector use explicit and default-disabled, reports
-  fingerprints and fusion configuration in JSON, and returns a non-zero JSON
-  diagnostic for unavailable models, missing or incompatible sidecars, invalid
-  dimensions, or invalid fusion parameters.
-
-#### Consumer admission gate
-
-Before tuning a hybrid candidate, the consumer records an evaluation profile
-that fixes separate development and admission case sets, the primary metric,
-minimum meaningful improvement, secondary-metric regression tolerance, cutoff,
-and permitted per-query regressions. The lexical baseline and hybrid candidate
-must use the same admission cases, snapshot, and cutoff. Synthetic fixtures may
-test mechanics but never count toward admission.
-
-A consumer may enable hybrid retrieval by default only when a reproducible
-admission report shows all of the following:
-
-- the predeclared primary metric improves by at least its predeclared minimum;
-- each secondary metric remains within its predeclared regression tolerance;
-- at least one documented lexical-gap case becomes successful;
-- general regression cases remain within the predeclared per-query regression
-  allowance; and
-- the report contains every identity and configuration field required above.
-
-The consumer admission set must include documented lexical gaps, including at
-least one Japanese paraphrase or synonym case whose expected evidence cannot be
-recovered by direct character overlap alone. If the admission set has no such
-gap, the candidate fails a threshold, or the report is not reproducible, vector
-retrieval remains experimental and default-disabled. Baseline and candidate
-reports are derived evaluation artifacts, not knowledge-base source data.
-
-### Milestone 4: retrieval integration contract
-
-Milestone 4 is the remaining package-completion milestone. It freezes a
-reproducible retrieval boundary for a separate RAG application; it does not add
-answer generation.
-
-#### Stable public surface
+### Supported surface
 
 Supported Python APIs are the names exported from `kb_retrieval_core.__all__`
-and listed in the README. Supported CLI commands are `build`, `vector-build`,
-`search`, `context`, `inspect`, and `eval`, including their JSON success and
-error envelopes. Every CLI success and error envelope carries
-`schema_version: 1`; additive fields are compatible within a major version.
-Every error envelope additionally carries a stable `code` from
-`kb_retrieval_core.diagnostics` and, once the command is known, the `command`
-that failed. A consumer classifies failures by `code`; `error` is a human
-message whose wording is not a contract. A new code may appear in a minor
-release, but an existing code never changes meaning.
-Stable serialized artifacts are lexical/vector manifests,
-search evidence, context packets, and evaluation reports. Private helpers,
-SQLite table layout, and test embedders are not application contracts.
+and listed in the README. The supported CLI commands and flags are documented
+in the [README](../README.md). CLI success and error envelopes carry
+`schema_version: 1`. Every error envelope also carries a stable `code` from
+`kb_retrieval_core.diagnostics` and, once known, the failed `command`. Consumers
+classify failures by `code`; the human-readable `error` wording is not a
+contract. A minor release may add a code, but an existing code never changes
+meaning.
 
-#### Reproducibility contract
+Stable serialized artifacts are lexical and vector manifests, search evidence,
+context packets, and evaluation reports. Private helpers, SQLite table layout,
+and test embedders are not application contracts.
 
-An evaluation report must describe the effective run, not only requested
-flags. It records package and artifact versions; snapshot, chunk, case,
-embedding, and vector identities; retrieval mode and final cutoff; effective
-backend cutoffs after seed expansion; complete RRF settings; and the complete
-graph policy. The graph policy includes predicate and Claim filters, decay and
-confidence weights, seed-pool factor and resulting cutoff, entity
-deduplication, graph-result reservation, and structural selection policy. Any
-field that can change candidates, ordering, cutoff membership, provenance, or
-scoring is compatibility-relevant.
+### Reproducibility
 
-#### Compatibility policy
+An evaluation report describes the effective run, not only requested flags. It
+records package and artifact versions; snapshot, chunk, case, embedding, and
+vector identities; retrieval mode and final cutoff; effective backend cutoffs
+after seed expansion; complete RRF settings; and the complete graph policy.
+The graph policy includes predicate and Claim filters, decay and confidence
+weights, seed-pool factor and resulting cutoff, entity deduplication,
+graph-result reservation, and structural selection policy. Any field that can
+change candidates, ordering, cutoff membership, provenance, or scoring is
+compatibility-relevant.
+
+### Compatibility
 
 - Additive optional JSON fields may be introduced in a minor release.
-- Removing, renaming, or changing the meaning/default of a public field or
-  rank/cutoff behavior requires a major release or versioned format migration.
+- Removing or renaming a public field, changing its meaning or default, or
+  changing rank/cutoff behavior requires a major release or versioned format
+  migration.
 - Unsupported artifact schemas fail explicitly; indexes remain disposable.
 - Default lexical behavior remains offline and deterministic.
 - Consumer-specific query policy and vector admission remain outside the
   stable core contract.
 
-#### Separate RAG application integration
+### Separate RAG application
 
 The RAG application owns user/query state, prompting, LLM calls, answer
 generation, citation presentation, HTTP APIs, authentication, and UI. It opens
 or builds an index, selects an explicit retrieval configuration, calls
 `search`/`context`, enforces Claim hedging and citation policy, and passes only
-assembled evidence to answer generation. This package must not gain those
-application responsibilities.
+assembled evidence to answer generation. See the [RAG integration guide](rag-integration.md)
+for the public integration flow.
 
-#### Milestone 4 completion gate
+## Vector admission policy
 
-Milestone 4 is complete only when all of the following pass:
+Vector implementation completion and consumer admission are separate gates.
+Passing package-level mechanics checks may ship vector retrieval as
+experimental and default-disabled; it does not establish improved retrieval
+quality. Each consumer records an evaluation profile fixing separate
+development and admission case sets, primary metric, minimum meaningful
+improvement, secondary-metric regression tolerance, cutoff, and permitted
+per-query regressions before tuning a hybrid candidate. Baseline and candidate
+use the same admission cases, snapshot, and cutoff. Synthetic fixtures test mechanics only and never count
+for admission.
 
-1. Effective retrieval/fusion/graph settings round-trip through evaluation JSON
-   and reproduce identical ranks on identical artifacts.
-2. Search, context, inspect, and evaluation JSON have golden compatibility
-   fixtures and explicit migration tests for intentional format changes.
-3. Strict/non-strict provenance is covered through Python and CLI entry points.
-4. A domain-neutral offline test covers build, reopen, search, graph Claim
-   evidence, context, evaluation, and failure diagnostics.
-5. The initial consumer profile covers teacher/student relations, relation and
-   value Claims, enumeration, and known lexical regressions at a fixed cutoff.
-6. Separate-RAG integration documentation uses only the public surface.
-7. The issue ledger has no open completion issue, the suite and
-   `git diff --check` pass, and version metadata identifies running source.
+A consumer may enable hybrid retrieval by default only when a reproducible
+admission report shows that:
 
-Only after this gate passes may this package be called implementation complete.
-Consumer vector admission and the separate RAG application are later projects.
+- the predeclared primary metric improves by at least its minimum;
+- each secondary metric stays within its regression tolerance;
+- at least one documented lexical-gap case becomes successful;
+- general regression cases stay within the per-query allowance; and
+- the report includes all required run identities and retrieval configuration.
 
-## Decisions made for Milestone 1
+The admission set includes documented lexical gaps, including a Japanese
+paraphrase or synonym whose expected evidence cannot be recovered by direct
+character overlap alone. If that gap is absent, a threshold fails, or the report
+is not reproducible, vector retrieval remains experimental and
+default-disabled. Baseline and candidate reports are derived evaluation
+artifacts, not knowledge-base source data.
 
-The following are now contract decisions, not deferred preferences:
+## Design extension conditions
 
-- canonical interchange is the harness-compatible Markdown/frontmatter,
-  `graph.json`, `references.yml`, and `evals/rag-eval.yml` described above;
-- Claims are separate from entities and support both relation and value forms,
-  with Claim path provenance;
-- confidence is opaque at the model boundary, with the injectable A/B/C/D
-  baseline mapping documented above;
-- ordinary relation confidence is retained separately from Claim status;
-- source IDs normalize to bare IDs, with strict unresolved-source behavior;
-- passage/entity and relation/Claim provenance roles remain distinct;
-- JSON normalization and canonical chunk JSONL bytes are defined above;
-- the offline acceptance fixture and end-to-end test path are mandatory.
-- SQLite schema version 2 persists normalized lexical fields and indexed
-  character n-gram postings. Reopened `SQLiteIndex.search*` operations obtain
-  candidates from those tables before deterministic scoring; SQLite is not
-  merely a serialized snapshot cache.
-- graph expansion is explicit and default-disabled in core orchestration; it
-  runs after direct retrieval/fusion and before the final cutoff.
-- evaluation evidence paths include emitted Claim paths without making Claims
-  ordinary graph entities.
-
-The following remain intentionally open and should be settled with tests and
-measurements rather than preference:
-
-- character n-gram size and weighting;
-- exact RRF constants and graph-expansion weights beyond the confidence
-  baseline;
-- long-section overlap and future subchunk identifiers;
-- query classification rules for graph expansion;
-- concrete embedding provider/model and consumer admission thresholds;
-- whether a shared public parsing package is justified;
-- the eventual stable CLI flags and persistent-index manifest details.
-
-Record any resolution in this document or an ADR before implementation makes
-it difficult to reverse.
-
-## Delivery roadmap
-
-The first consumer is the CLI-based RAG application. Its public retrieval and
-Evidence Packet behavior is the reference implementation and remains
-conformance-tested before additional consumers are added.
-
-The reusable boundary is the existing public search/context surface and its
-serialized evidence contracts. Consumer-facing citation resolution, answer
-validation, and prompting remain in the RAG application and are not duplicated
-in this core package.
-
-Once the reference CLI contracts are frozen, add one consumer surface at a
-time—Web UI, batch execution, or another CLI—using the same public contracts.
+Tune n-gram weighting or RRF parameters only when measured retrieval results
+show a need. Add long-section overlap only with stable subchunk identifiers.
+Query classification remains consumer policy until a domain-independent rule
+has evaluation evidence. Extract shared parsing code only after both packages
+show actual duplication.

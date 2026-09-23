@@ -2,7 +2,7 @@
 
 Before changing retrieval behavior, read `docs/ARCHITECTURE.md` completely.
 It is the canonical record of the package boundary, input contract, provenance
-rules, and implementation sequence.
+rules, and compatibility policy.
 
 ## Session bootstrap
 
