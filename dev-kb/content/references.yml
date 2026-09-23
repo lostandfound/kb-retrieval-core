@@ -1,0 +1,9 @@
+diagnostic-issue:
+  type: repository
+  title: Issue 15 — stable diagnostic codes
+  path: docs/ISSUES.md
+  revision: 02d413c6241098a591d92c53bc3775be91ed606d
+diagnostic-commit:
+  type: repository
+  title: Add stable diagnostic codes to CLI error envelopes
+  revision: 02d413c6241098a591d92c53bc3775be91ed606d

@@ -1,0 +1,5 @@
+domain:
+  name: kb-retrieval-core development
+  kb_title: Development decisions
+  description: Sourced explanations of completed engineering decisions
+  content_root: content

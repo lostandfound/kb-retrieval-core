@@ -510,3 +510,36 @@ Milestone 3 implementation completion auditable.
       applicable Claim status/confidence.
 - [x] Milestone 3 implementation acceptance is complete before any consumer
       admission claim is made.
+
+
+## Issue #16: Trial a development KB with one sourced decision
+
+**Status**: completed in current working tree
+
+**Purpose**: Recover the reason for Issue #15 without chat history, using
+kb-harness-core as a development tool. No retrieval behavior or consumer
+contract changes.
+
+**DoD**:
+
+- [x] `dev-kb/` contains a minimal configuration and one decision record.
+- [x] The record explains why diagnostic codes were added and links to
+  Issue #15, commit `02d413c`, implementation, and existing tests.
+- [x] `kb validate --start dev-kb` and `kb sync --start dev-kb --check` pass.
+- [x] Repository tests pass and the trial instructions identify the entry point.
+
+Issue and Git remain canonical; the KB is a sourced navigation aid.
+
+
+**Verification (2026-09-24)**:
+
+- `.venv-kb-harness/bin/kb validate --start dev-kb`: OK.
+- `.venv-kb-harness/bin/kb sync --start dev-kb --check`: OK.
+- `PYTHONPATH=src python3 -m pytest`: exit 0 (204 tests collected).
+- `git diff --check`: exit 0.
+- All four relative links in the decision resolve, including the Issue #15 anchor.
+
+The record answers why (avoid message matching) and which change
+(`02d413c6241098a591d92c53bc3775be91ed606d`) from repository evidence.
+Usefulness in a later session remains to be evaluated; no retrieval-quality
+claim is made.

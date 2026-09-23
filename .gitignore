@@ -7,3 +7,9 @@ build/
 dist/
 .env
 
+
+# APM dependencies
+apm_modules/
+
+# Development harness CLI environment
+.venv-kb-harness/

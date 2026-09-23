@@ -1,0 +1,186 @@
+lockfile_version: '1'
+generated_at: '2026-09-23T17:48:06.488826+00:00'
+apm_version: 0.28.0
+dependencies:
+- repo_url: lostandfound/kb-harness-core
+  name: kb-harness-core
+  host: github.com
+  resolved_commit: 818e90f5425777a701aa19ce676528dc9f709a9f
+  resolved_ref: v0.2.1
+  version: 0.2.1
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/add-entity
+  - .agents/skills/add-entity/SKILL.md
+  - .agents/skills/audit-harness
+  - .agents/skills/audit-harness/SKILL.md
+  - .agents/skills/check-okf
+  - .agents/skills/check-okf/SKILL.md
+  - .agents/skills/find-book
+  - .agents/skills/find-book/SKILL.md
+  - .agents/skills/find-paper
+  - .agents/skills/find-paper/SKILL.md
+  - .agents/skills/ndl-digicolle
+  - .agents/skills/ndl-digicolle/SKILL.md
+  - .agents/skills/review-doc
+  - .agents/skills/review-doc/SKILL.md
+  - .codex/agents/evidence-reviewer.toml
+  - .codex/agents/rag-tester.toml
+  deployed_file_hashes:
+    .agents/skills/add-entity/SKILL.md: sha256:966458b66322dcd254a36da6e9b24f266672207dc5b44c06e8191646c86007a7
+    .agents/skills/audit-harness/SKILL.md: sha256:d2c77264d52d765a04e7f2ac81b004f6e309c997aa5ad21e2902aa8e3d80990b
+    .agents/skills/check-okf/SKILL.md: sha256:b77dc499639179fca9500f6e37cec2a9302bb58e50878609563bf651a35eb12c
+    .agents/skills/find-book/SKILL.md: sha256:5e5e3e3b10ee21bc7698c9ddcb1c55af55af1bde475ea234cf8b25bbae72843e
+    .agents/skills/find-paper/SKILL.md: sha256:d69162a636c7cbb27ff45f9f5ed8d9f56a75b19c8a9b8135dfbd444cc53ede6b
+    .agents/skills/ndl-digicolle/SKILL.md: sha256:d1cca71896270f8a8797e62ee8b5bbbb9de0b8e04eebc103a366d712acf26283
+    .agents/skills/review-doc/SKILL.md: sha256:4144c2915fc399bab78d3d84befbe21b0b16ac62f56588b005428aaed6d38b49
+    .codex/agents/evidence-reviewer.toml: sha256:b651dd4a1ca703271661b23d6d30cb70238ec9997cbacb65b1528cc970a357e7
+    .codex/agents/rag-tester.toml: sha256:8e97969157515a7345536f1cd19e203deef60ca8f220a5754cec7bd349a667db
+  content_hash: sha256:a04862363772c01fe7aac23f3036b630f3b5d0d150cf47a9b2f32794cf9791f3
+  is_dev: true
+  declared_license: MIT
+deployments:
+- kind: project-relative
+  target: codex
+  value: .agents/skills/add-entity
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/add-entity/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:966458b66322dcd254a36da6e9b24f266672207dc5b44c06e8191646c86007a7
+- kind: project-relative
+  target: codex
+  value: .agents/skills/audit-harness
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/audit-harness/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:d2c77264d52d765a04e7f2ac81b004f6e309c997aa5ad21e2902aa8e3d80990b
+- kind: project-relative
+  target: codex
+  value: .agents/skills/check-okf
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/check-okf/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:b77dc499639179fca9500f6e37cec2a9302bb58e50878609563bf651a35eb12c
+- kind: project-relative
+  target: codex
+  value: .agents/skills/find-book
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/find-book/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:5e5e3e3b10ee21bc7698c9ddcb1c55af55af1bde475ea234cf8b25bbae72843e
+- kind: project-relative
+  target: codex
+  value: .agents/skills/find-paper
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/find-paper/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:d69162a636c7cbb27ff45f9f5ed8d9f56a75b19c8a9b8135dfbd444cc53ede6b
+- kind: project-relative
+  target: codex
+  value: .agents/skills/ndl-digicolle
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/ndl-digicolle/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:d1cca71896270f8a8797e62ee8b5bbbb9de0b8e04eebc103a366d712acf26283
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-doc
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-doc/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:4144c2915fc399bab78d3d84befbe21b0b16ac62f56588b005428aaed6d38b49
+- kind: project-relative
+  target: codex
+  value: .codex/agents/evidence-reviewer.toml
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:b651dd4a1ca703271661b23d6d30cb70238ec9997cbacb65b1528cc970a357e7
+- kind: project-relative
+  target: codex
+  value: .codex/agents/rag-tester.toml
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:8e97969157515a7345536f1cd19e203deef60ca8f220a5754cec7bd349a667db

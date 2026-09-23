@@ -6,6 +6,8 @@ rules, and compatibility policy.
 
 ## Session bootstrap
 
+For substantive AI-assisted development tasks, read [`docs/AI-DEV-TRIAL.md`](docs/AI-DEV-TRIAL.md) before starting. It is the persistent workflow and reusable prompt; do not treat chat history as project state.
+
 This file is the handoff entry point for a new development session rooted at
 this repository. Start by running `git status --short --branch` and
 `git log -5 --oneline`; do not assume the working tree is clean or that the
@@ -58,3 +60,12 @@ Run:
 ```bash
 PYTHONPATH=src python3 -m pytest
 ```
+
+
+## Development KB trial
+
+`dev-kb/` contains one sourced record about CLI diagnostic codes. Start at
+`docs/AI-DEV-TRIAL.md` for the trial and `dev-kb/CONTRIBUTING.md` for KB edits.
+Use `.venv-kb-harness/bin/kb` with `--start dev-kb`; Issue and Git records
+remain canonical. This KB is development tooling, not a package input or
+consumer admission profile.

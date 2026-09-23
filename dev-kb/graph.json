@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "path": "/decisions/stable-cli-diagnostic-codes.md",
+      "type": "Decision",
+      "title": "Stable CLI diagnostic codes",
+      "description": "Why the CLI exposes stable error codes independently of human-readable messages.",
+      "tags": [
+        "cli"
+      ]
+    }
+  ],
+  "edges": [],
+  "claims": []
+}

@@ -1,0 +1,6 @@
+types:
+  Decision:
+    directory: decisions
+    sections: [Problem, Decision, Evidence]
+predicates: {}
+tags: [cli]
