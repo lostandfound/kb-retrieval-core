@@ -68,7 +68,7 @@ concrete failure shows the current files and Git history are insufficient.
 ## Development harness installation
 
 `apm.yml` pins the development dependency to GitHub's
-`lostandfound/kb-harness-core#v0.2.1`; `apm.lock.yaml` records the resolved
+`lostandfound/kb-harness-core#v0.7.0`; `apm.lock.yaml` records the resolved
 commit. Restore the tools from the repository root:
 
 ```bash

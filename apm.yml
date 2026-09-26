@@ -14,4 +14,4 @@ includes: auto
 scripts: {}
 devDependencies:
   apm:
-    - lostandfound/kb-harness-core#v0.2.1
+    - lostandfound/kb-harness-core#v0.7.0
