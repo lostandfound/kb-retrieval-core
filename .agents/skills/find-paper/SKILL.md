@@ -5,7 +5,7 @@ description: CiNii API で論文を検索し references.yml へ登録する確�
 
 ナレッジベースの出典として論文・文献を探し、文献レジストリに登録するときは以下の手順を実行する。規約の正本は `CONTRIBUTING.md` の sources 節。まずリポジトリルートの `kb-domain.yml` を読み、`domain.content_root` を把握する。
 
-1. `python3 scripts/cinii_search.py "<検索語>" --count 5 --format json > <作業用ディレクトリ>/search-result.json` を実行する（作業用ディレクトリはリポジトリ外のスクラッチ領域。`search-result.json`・`reference.yml` はリポジトリに含めない）。アプリケーション ID は `.env`（gitignore 済み、`CINII_APP_ID=...`）から自動で読まれる。未設定エラーが出たらユーザーに `.env` への設定を依頼する（ID の値をチャットやリポジトリに書かせない）。人向けの登録案が必要なら `--format yaml`（既定）を使う。
+1. `python3 apm_modules/lostandfound/kb-harness-core/scripts/cinii_search.py "<検索語>" --count 5 --format json > <作業用ディレクトリ>/search-result.json` を実行する（作業用ディレクトリはリポジトリ外のスクラッチ領域。`search-result.json`・`reference.yml` はリポジトリに含めない）。アプリケーション ID は `.env`（gitignore 済み、`CINII_APP_ID=...`）から自動で読まれる。未設定エラーが出たらユーザーに `.env` への設定を依頼する（ID の値をチャットやリポジトリに書かせない）。人向けの登録案が必要なら `--format yaml`（既定）を使う。
 
 2. 出力される references.yml 登録案から、対象エンティティの主張を実際に裏付けられそうな文献を選ぶ。タイトルだけで判断できない場合は URL を WebFetch して要旨を確認する。
 
@@ -13,6 +13,6 @@ description: CiNii API で論文を検索し references.yml へ登録する確�
 
 4. 出典として使うエンティティの `sources` に `- "ref: <id>"` を追記する。本文の主張は必ず自分の言葉で書く。PDF 等の本文ファイルはリポジトリに保存しない。
 
-5. `python3 scripts/validate.py` でエラーゼロ、URL を登録した場合は `--check-urls` も実行する。
+5. `kb validate` でエラーゼロ、URL を登録した場合は `--check-urls` も実行する。
 
 6. コミットする。pre-commit hook が最終検証を行う。

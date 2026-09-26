@@ -1,13 +1,13 @@
 lockfile_version: '1'
-generated_at: '2026-09-23T17:48:06.488826+00:00'
+generated_at: '2026-09-26T21:40:26.003220+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: lostandfound/kb-harness-core
   name: kb-harness-core
   host: github.com
-  resolved_commit: 818e90f5425777a701aa19ce676528dc9f709a9f
-  resolved_ref: v0.2.1
-  version: 0.2.1
+  resolved_commit: d00b35a004e641ed70d504f629beb49cf1e3a5c0
+  resolved_ref: v0.7.0
+  version: 0.7.0
   package_type: apm_package
   deployed_files:
   - .agents/skills/add-entity
@@ -16,6 +16,10 @@ dependencies:
   - .agents/skills/audit-harness/SKILL.md
   - .agents/skills/check-okf
   - .agents/skills/check-okf/SKILL.md
+  - .agents/skills/expand-kb
+  - .agents/skills/expand-kb/SKILL.md
+  - .agents/skills/explore-kb
+  - .agents/skills/explore-kb/SKILL.md
   - .agents/skills/find-book
   - .agents/skills/find-book/SKILL.md
   - .agents/skills/find-paper
@@ -24,19 +28,24 @@ dependencies:
   - .agents/skills/ndl-digicolle/SKILL.md
   - .agents/skills/review-doc
   - .agents/skills/review-doc/SKILL.md
+  - .agents/skills/review-entity-model
+  - .agents/skills/review-entity-model/SKILL.md
   - .codex/agents/evidence-reviewer.toml
   - .codex/agents/rag-tester.toml
   deployed_file_hashes:
-    .agents/skills/add-entity/SKILL.md: sha256:966458b66322dcd254a36da6e9b24f266672207dc5b44c06e8191646c86007a7
-    .agents/skills/audit-harness/SKILL.md: sha256:d2c77264d52d765a04e7f2ac81b004f6e309c997aa5ad21e2902aa8e3d80990b
+    .agents/skills/add-entity/SKILL.md: sha256:93da9c798a10d78b857e3d739c99949c0190b55cbba019f6f0162488667ddaa3
+    .agents/skills/audit-harness/SKILL.md: sha256:c642d53d799867e441ab18ad58b9be5d4dd2ea3259bc6c472a489d4d3dad20d8
     .agents/skills/check-okf/SKILL.md: sha256:b77dc499639179fca9500f6e37cec2a9302bb58e50878609563bf651a35eb12c
-    .agents/skills/find-book/SKILL.md: sha256:5e5e3e3b10ee21bc7698c9ddcb1c55af55af1bde475ea234cf8b25bbae72843e
-    .agents/skills/find-paper/SKILL.md: sha256:d69162a636c7cbb27ff45f9f5ed8d9f56a75b19c8a9b8135dfbd444cc53ede6b
-    .agents/skills/ndl-digicolle/SKILL.md: sha256:d1cca71896270f8a8797e62ee8b5bbbb9de0b8e04eebc103a366d712acf26283
+    .agents/skills/expand-kb/SKILL.md: sha256:378521b10599c44e8f26b48e11370d9020f50ba3cbffcf1424cb9341aec45da2
+    .agents/skills/explore-kb/SKILL.md: sha256:ab346a616870d94d645fdc5b52226e75c49aa765ede7988466bb9d1b43327dc8
+    .agents/skills/find-book/SKILL.md: sha256:33e8b3ff179bd4b93067a6f41f160572f39a094923666aa456fda5223d7a3002
+    .agents/skills/find-paper/SKILL.md: sha256:0e3e1deeee631c2b6bc6526c8f67e5036450913efb15c7b752b843bfdc296622
+    .agents/skills/ndl-digicolle/SKILL.md: sha256:fe14eef516343f008c123a8cbe006b840cbf390691f8ad39d08fccd90d0d0083
     .agents/skills/review-doc/SKILL.md: sha256:4144c2915fc399bab78d3d84befbe21b0b16ac62f56588b005428aaed6d38b49
-    .codex/agents/evidence-reviewer.toml: sha256:b651dd4a1ca703271661b23d6d30cb70238ec9997cbacb65b1528cc970a357e7
-    .codex/agents/rag-tester.toml: sha256:8e97969157515a7345536f1cd19e203deef60ca8f220a5754cec7bd349a667db
-  content_hash: sha256:a04862363772c01fe7aac23f3036b630f3b5d0d150cf47a9b2f32794cf9791f3
+    .agents/skills/review-entity-model/SKILL.md: sha256:ab18a6e77b042d8dc48d4fd1640a2c6412ad3bb156f165c9ced25a0b2f816590
+    .codex/agents/evidence-reviewer.toml: sha256:46030a863a81fbf1535800ac7dedf5caa332c13aa54a09f64215437ac6fbc91b
+    .codex/agents/rag-tester.toml: sha256:5ebdee4bd6e8db738aa9833396696ccd1dc03f8318ca252ba3944d4279a97867
+  content_hash: sha256:e2afcc62452bb2d8826efddd0d216d4e07df8b1e160a46c1c9f32a058d4dd71f
   is_dev: true
   declared_license: MIT
 deployments:
@@ -57,7 +66,7 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:966458b66322dcd254a36da6e9b24f266672207dc5b44c06e8191646c86007a7
+  content_hash: sha256:93da9c798a10d78b857e3d739c99949c0190b55cbba019f6f0162488667ddaa3
 - kind: project-relative
   target: codex
   value: .agents/skills/audit-harness
@@ -75,7 +84,7 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:d2c77264d52d765a04e7f2ac81b004f6e309c997aa5ad21e2902aa8e3d80990b
+  content_hash: sha256:c642d53d799867e441ab18ad58b9be5d4dd2ea3259bc6c472a489d4d3dad20d8
 - kind: project-relative
   target: codex
   value: .agents/skills/check-okf
@@ -96,6 +105,42 @@ deployments:
   content_hash: sha256:b77dc499639179fca9500f6e37cec2a9302bb58e50878609563bf651a35eb12c
 - kind: project-relative
   target: codex
+  value: .agents/skills/expand-kb
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/expand-kb/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:378521b10599c44e8f26b48e11370d9020f50ba3cbffcf1424cb9341aec45da2
+- kind: project-relative
+  target: codex
+  value: .agents/skills/explore-kb
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/explore-kb/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:ab346a616870d94d645fdc5b52226e75c49aa765ede7988466bb9d1b43327dc8
+- kind: project-relative
+  target: codex
   value: .agents/skills/find-book
   runtime: null
   scope: project
@@ -111,7 +156,7 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:5e5e3e3b10ee21bc7698c9ddcb1c55af55af1bde475ea234cf8b25bbae72843e
+  content_hash: sha256:33e8b3ff179bd4b93067a6f41f160572f39a094923666aa456fda5223d7a3002
 - kind: project-relative
   target: codex
   value: .agents/skills/find-paper
@@ -129,7 +174,7 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:d69162a636c7cbb27ff45f9f5ed8d9f56a75b19c8a9b8135dfbd444cc53ede6b
+  content_hash: sha256:0e3e1deeee631c2b6bc6526c8f67e5036450913efb15c7b752b843bfdc296622
 - kind: project-relative
   target: codex
   value: .agents/skills/ndl-digicolle
@@ -147,7 +192,7 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:d1cca71896270f8a8797e62ee8b5bbbb9de0b8e04eebc103a366d712acf26283
+  content_hash: sha256:fe14eef516343f008c123a8cbe006b840cbf390691f8ad39d08fccd90d0d0083
 - kind: project-relative
   target: codex
   value: .agents/skills/review-doc
@@ -168,13 +213,31 @@ deployments:
   content_hash: sha256:4144c2915fc399bab78d3d84befbe21b0b16ac62f56588b005428aaed6d38b49
 - kind: project-relative
   target: codex
+  value: .agents/skills/review-entity-model
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/review-entity-model/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - lostandfound/kb-harness-core
+  active_owner: lostandfound/kb-harness-core
+  content_hash: sha256:ab18a6e77b042d8dc48d4fd1640a2c6412ad3bb156f165c9ced25a0b2f816590
+- kind: project-relative
+  target: codex
   value: .codex/agents/evidence-reviewer.toml
   runtime: null
   scope: project
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:b651dd4a1ca703271661b23d6d30cb70238ec9997cbacb65b1528cc970a357e7
+  content_hash: sha256:46030a863a81fbf1535800ac7dedf5caa332c13aa54a09f64215437ac6fbc91b
 - kind: project-relative
   target: codex
   value: .codex/agents/rag-tester.toml
@@ -183,4 +246,4 @@ deployments:
   owners:
   - lostandfound/kb-harness-core
   active_owner: lostandfound/kb-harness-core
-  content_hash: sha256:8e97969157515a7345536f1cd19e203deef60ca8f220a5754cec7bd349a667db
+  content_hash: sha256:5ebdee4bd6e8db738aa9833396696ccd1dc03f8318ca252ba3944d4279a97867
