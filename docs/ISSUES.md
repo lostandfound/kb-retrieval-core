@@ -144,9 +144,10 @@ adopts the same convention without importing harness internals.
 **Dependencies**: Issue #11
 **Labels**: `feat`, `priority: medium`
 
-## Issue #16: Accept additive `graph.json` collections emitted by the harness
+## Issue #17: Accept additive `graph.json` collections emitted by the harness
 
-**Status**: proposed (2026-09-29)
+**Status**: completed (2026-09-29)
+**Numbering**: first recorded as #16 in b14f815; renumbered on 2026-09-29 because Issue #16 (the development KB trial) already existed.
 **Priority**: high
 **Purpose**: The snapshot loader rejects any `graph.json` whose top level is not
 exactly `nodes`, `edges`, and `claims`. The current `kb-harness-core` contract
@@ -168,16 +169,24 @@ top-level collections ['views']".
 
 **DoD**:
 
-- [ ] A graph with `views` and/or `predicates` loads and indexes; retrieval
+- [x] A graph with `views` and/or `predicates` loads and indexes; retrieval
   results for the same entities are unchanged.
-- [ ] Snapshot and chunk hashes of graphs without these collections are
+- [x] Snapshot and chunk hashes of graphs without these collections are
   unchanged.
-- [ ] The chosen rule for other unknown collections is documented and tested.
-- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+- [x] The chosen rule for other unknown collections is documented and tested.
+- [x] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
 
-## Issue #17: Reconcile the `references.yml` `year` type with the harness
+**Resolution**: `views` (list) and `predicates` (object) are accepted, shape-checked,
+and not retained, rather than kept as snapshot metadata: retrieval reads
+relations and Claims from Markdown and has no reader for them, and dropping
+them keeps the loaded snapshot and all hashes identical to a graph without
+them. Other unknown top-level keys are still rejected. Verified by building an
+index for the unmodified `omnibus-kb` graph (216 entities, `views` present).
 
-**Status**: proposed (2026-09-29)
+## Issue #18: Reconcile the `references.yml` `year` type with the harness
+
+**Status**: completed (2026-09-29)
+**Numbering**: first recorded as #17 in b14f815; renumbered on 2026-09-29 because Issue #16 (the development KB trial) already existed.
 **Priority**: high
 **Purpose**: The loader raises `snapshot_load_error` unless `year` is an
 integer. `kb-harness-core` does not constrain the type: `kb validate` accepts
@@ -196,15 +205,24 @@ the whole snapshot fails to load.
 
 **DoD**:
 
-- [ ] A reference with `year: '2026'` loads with the same normalized value as
+- [x] A reference with `year: '2026'` loads with the same normalized value as
   `year: 2026`, or the rejection is documented as the agreed contract and the
   harness side has a matching tracked change.
-- [ ] Non-numeric years still fail with `snapshot_load_error`.
-- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+- [x] Non-numeric years still fail with `snapshot_load_error`.
+- [x] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
 
-## Issue #18: Report outranking entities for failed evaluation cases
+**Resolution**: the loader accepts a string that is exactly an ASCII decimal
+integer (optionally signed) and normalizes it to `int`; the harness keeps its
+unconstrained type. The rule is broader than the four-digit form first
+proposed so that it does not encode a calendar assumption. Booleans, floats,
+and other strings still fail with `snapshot_load_error`. Recorded in
+`docs/ARCHITECTURE.md`; no ADR, because the change only widens accepted input.
+Verified with the unmodified `omnibus-kb` references (46 of 494 quoted years).
+
+## Issue #19: Report outranking entities for failed evaluation cases
 
 **Status**: proposed (2026-09-29); scope to be confirmed
+**Numbering**: first recorded as #18 in b14f815; renumbered on 2026-09-29 because Issue #16 (the development KB trial) already existed.
 **Priority**: low
 **Purpose**: A retrieval self-improvement loop (discussed in `kb-harness-core`
 `docs/notes/rag-jiko-kaizen-memo.md`) needs to know, for each failed case,

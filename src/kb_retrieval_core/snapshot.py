@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -162,22 +163,35 @@ def _load_json(path: Path) -> Any:
         raise SnapshotLoadError(f"{path}: cannot read JSON: {exc}") from exc
 
 
+# Optional top-level collections that the kb-harness-core graph exporter emits
+# for its own consumers.  They are shape-checked and then ignored: retrieval
+# reads relations and Claims from Markdown, and these collections neither add
+# knowledge nor affect ranking, chunking, or identity hashes.
+_OPTIONAL_GRAPH_COLLECTIONS = {"views": list, "predicates": Mapping}
+
+
 def _graph_parts(value: Any, path: Path) -> tuple[tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...], tuple[Mapping[str, Any], ...]]:
     if not isinstance(value, Mapping):
         raise SnapshotLoadError(f"{path}: graph JSON must be an object")
     expected = {"nodes", "edges", "claims"}
     actual = set(value)
-    if actual != expected:
-        missing = sorted(expected - actual)
-        extra = sorted(actual - expected)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected - set(_OPTIONAL_GRAPH_COLLECTIONS))
+    if missing or extra:
         details = []
         if missing:
             details.append(f"missing top-level collections {missing!r}")
         if extra:
             details.append(f"unknown top-level collections {extra!r}")
         raise SnapshotLoadError(
-            f"{path}: graph JSON must contain exactly nodes, edges, and claims (" + "; ".join(details) + ")"
+            f"{path}: graph JSON must contain exactly nodes, edges, and claims, plus optional "
+            + ", ".join(sorted(_OPTIONAL_GRAPH_COLLECTIONS))
+            + " (" + "; ".join(details) + ")"
         )
+    for name, kind in _OPTIONAL_GRAPH_COLLECTIONS.items():
+        if name in value and not isinstance(value[name], kind):
+            shape = "a list" if kind is list else "an object"
+            raise SnapshotLoadError(f"{path}: graph '{name}' must be {shape}")
     return (_records(value["nodes"], path, "nodes", True), _records(value["edges"], path, "edges", True), _records(value["claims"], path, "claims", True))
 
 
@@ -418,6 +432,25 @@ def _dedupe_claims(claims: Iterable[Claim]) -> tuple[Claim, ...]:
     return tuple(merged[key] for key in sorted(merged))
 
 
+_YEAR_STRING = re.compile(r"-?[0-9]+")
+
+
+def _reference_year(value: Any, raw_id: object, path: Path) -> int | None:
+    """Return an integer year; accept an ASCII decimal integer string.
+
+    kb-harness-core does not constrain the YAML type of ``year``, so a quoted
+    ``'2026'`` is a valid authored value there.  It is normalized to ``2026``
+    so both spellings produce the same reference record and source hash.
+    """
+    if value is None:
+        return None
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str) and _YEAR_STRING.fullmatch(value.strip()):
+        return int(value.strip())
+    raise SnapshotLoadError(f"{path}: reference {raw_id!r} year must be an integer or a decimal integer string")
+
+
 def _load_references(path: Path) -> tuple[Reference, ...]:
     if yaml is None:
         raise SnapshotLoadError(f"{path}: YAML support requires PyYAML: {_YAML_IMPORT_ERROR}")
@@ -448,9 +481,7 @@ def _load_references(path: Path) -> tuple[Reference, ...]:
             authors = (authors,)
         if not isinstance(authors, (list, tuple)) or any(not isinstance(item, str) for item in authors):
             raise SnapshotLoadError(f"{path}: reference {raw_id!r} authors must be a string list")
-        year = record.get("year")
-        if year is not None and (isinstance(year, bool) or not isinstance(year, int)):
-            raise SnapshotLoadError(f"{path}: reference {raw_id!r} year must be an integer")
+        year = _reference_year(record.get("year"), raw_id, path)
         url = record.get("url")
         if url is not None and (not isinstance(url, str) or not url.strip()):
             raise SnapshotLoadError(f"{path}: reference {raw_id!r} url must be a non-empty string")

@@ -137,6 +137,7 @@ def test_load_snapshot_rejects_missing_optional_evaluation_file(tmp_path: Path) 
     [
         {"nodes": [], "edges": []},
         {"nodes": [], "edges": [], "claims": [], "links": []},
+        {"nodes": [], "edges": [], "claims": [], "views": [], "links": []},
         {"graph": {"nodes": [], "edges": [], "claims": []}},
     ],
 )
@@ -144,6 +145,48 @@ def test_graph_json_requires_exact_top_level_collections(tmp_path: Path, payload
     content, graph, references = _bundle(tmp_path)
     graph.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(SnapshotLoadError, match="exactly nodes, edges, and claims"):
+        load_snapshot(content, graph, references)
+
+
+def test_graph_json_accepts_harness_optional_collections_without_changing_snapshot(tmp_path: Path) -> None:
+    content, graph, references = _bundle(tmp_path)
+    baseline = load_snapshot(content, graph, references)
+    payload = json.loads(graph.read_text(encoding="utf-8"))
+    payload["views"] = [{"name": "Example view", "kind": "list", "members": ["/source.md"]}]
+    payload["predicates"] = {"knows": {"broader": "related-to", "maps_to": ["schema:knows"]}}
+    graph.write_text(json.dumps(payload), encoding="utf-8")
+    extended = load_snapshot(content, graph, references)
+    assert extended == baseline
+    assert [chunk.content_hash for chunk in chunk_snapshot(extended).chunks] == [chunk.content_hash for chunk in chunk_snapshot(baseline).chunks]
+
+
+@pytest.mark.parametrize(("name", "value", "shape"), [("views", {}, "a list"), ("predicates", [], "an object")])
+def test_graph_json_optional_collections_are_shape_checked(tmp_path: Path, name: str, value: object, shape: str) -> None:
+    content, graph, references = _bundle(tmp_path)
+    payload = json.loads(graph.read_text(encoding="utf-8"))
+    payload[name] = value
+    graph.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(SnapshotLoadError, match=f"graph '{name}' must be {shape}"):
+        load_snapshot(content, graph, references)
+
+
+def test_reference_year_accepts_decimal_integer_string(tmp_path: Path) -> None:
+    content, graph, references = _bundle(tmp_path)
+    text = references.read_text(encoding="utf-8")
+    references.write_text(text.replace("  author: Author\n", "  author: Author\n  year: 2026\n", 1), encoding="utf-8")
+    as_int = load_snapshot(content, graph, references)
+    references.write_text(text.replace("  author: Author\n", "  author: Author\n  year: '2026'\n", 1), encoding="utf-8")
+    as_string = load_snapshot(content, graph, references)
+    assert as_string == as_int
+    assert next(item for item in as_string.references if item.reference_id == "source").year == 2026
+
+
+@pytest.mark.parametrize("value", ["'2026年'", "'c. 1900'", "''", "true", "1900.5"])
+def test_reference_year_rejects_non_integer_values(tmp_path: Path, value: str) -> None:
+    content, graph, references = _bundle(tmp_path)
+    text = references.read_text(encoding="utf-8")
+    references.write_text(text.replace("  author: Author\n", f"  author: Author\n  year: {value}\n", 1), encoding="utf-8")
+    with pytest.raises(SnapshotLoadError, match="year must be an integer or a decimal integer string"):
         load_snapshot(content, graph, references)
 
 
