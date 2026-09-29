@@ -144,6 +144,90 @@ adopts the same convention without importing harness internals.
 **Dependencies**: Issue #11
 **Labels**: `feat`, `priority: medium`
 
+## Issue #16: Accept additive `graph.json` collections emitted by the harness
+
+**Status**: proposed (2026-09-29)
+**Priority**: high
+**Purpose**: The snapshot loader rejects any `graph.json` whose top level is not
+exactly `nodes`, `edges`, and `claims`. The current `kb-harness-core` contract
+(`docs/configuration.md`) emits a `views` array when a KB enables views and a
+`predicates` object when the vocabulary declares `broader` / `maps_to`. A
+consumer KB that uses either feature cannot be indexed at all: building an index
+for `omnibus-kb` (216 entities) fails with `snapshot_load_error` "unknown
+top-level collections ['views']".
+
+**Implementation**:
+
+- Accept `views` and `predicates` as known optional top-level collections and
+  retain them as snapshot metadata without affecting ranking, chunking, or
+  existing hashes of snapshots that do not contain them.
+- Keep rejecting genuinely unknown collections, or define an explicit additive
+  rule in `docs/ARCHITECTURE.md` (for example, "unknown top-level keys are
+  ignored and reported") and test it.
+- Update the `graph.json` schema section of `docs/ARCHITECTURE.md`.
+
+**DoD**:
+
+- [ ] A graph with `views` and/or `predicates` loads and indexes; retrieval
+  results for the same entities are unchanged.
+- [ ] Snapshot and chunk hashes of graphs without these collections are
+  unchanged.
+- [ ] The chosen rule for other unknown collections is documented and tested.
+- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+
+## Issue #17: Reconcile the `references.yml` `year` type with the harness
+
+**Status**: proposed (2026-09-29)
+**Priority**: high
+**Purpose**: The loader raises `snapshot_load_error` unless `year` is an
+integer. `kb-harness-core` does not constrain the type: `kb validate` accepts
+quoted years such as `year: '2026'`, and its reference tooling normalizes the
+year to a string. In `omnibus-kb`, 46 of 494 references use a quoted year, so
+the whole snapshot fails to load.
+
+**Implementation**:
+
+- Decide the contract with the harness: either accept a string that is exactly
+  a four-digit (optionally signed) integer and normalize it to `int`, or keep
+  `int` only and ask the harness to enforce it. Record the choice in
+  `docs/ARCHITECTURE.md`; add an ADR only if it constrains later work.
+- If accepting strings, reject non-numeric strings with the existing
+  diagnostic code rather than silently dropping the field.
+
+**DoD**:
+
+- [ ] A reference with `year: '2026'` loads with the same normalized value as
+  `year: 2026`, or the rejection is documented as the agreed contract and the
+  harness side has a matching tracked change.
+- [ ] Non-numeric years still fail with `snapshot_load_error`.
+- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+
+## Issue #18: Report outranking entities for failed evaluation cases
+
+**Status**: proposed (2026-09-29); scope to be confirmed
+**Priority**: low
+**Purpose**: A retrieval self-improvement loop (discussed in `kb-harness-core`
+`docs/notes/rag-jiko-kaizen-memo.md`) needs to know, for each failed case,
+which entities ranked above the expected evidence ("confusers"), so that an
+external tool can propose distinguishing keys or descriptions. The evaluation
+report already records per-query returned paths on failure; this issue would
+make the confuser set explicit and stable. Proposing or applying changes stays
+outside this package (no LLM, no KB writes).
+
+**Implementation**:
+
+- Add an optional, additive per-failure field listing the entity paths ranked
+  above the first expected path within the cutoff, with their scores and the
+  entity field or section that matched.
+- Keep report identity, cutoff semantics, and existing fields unchanged.
+
+**DoD**:
+
+- [ ] Failed cases list outranking entities deterministically; successful
+  cases are unchanged.
+- [ ] Golden JSON for evaluation reports is updated as an additive change.
+- [ ] `PYTHONPATH=src python3 -m pytest` and `git diff --check` pass.
+
 ## Architecture audit follow-up (2026-09-17)
 
 The temporary implementation audit is not a canonical project record. Its
