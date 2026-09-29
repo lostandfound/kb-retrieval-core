@@ -1,7 +1,7 @@
 # Architecture and package contract
 
 Status: current package contract; Milestone 4 is complete.
-Last updated: 2026-09-24
+Last updated: 2026-09-29
 
 ## Purpose
 
@@ -161,7 +161,7 @@ evaluation case.
 
 ### `graph.json`
 
-The graph exporter writes one object with exactly these top-level collections:
+The graph exporter writes one object with these required top-level collections:
 
 ```json
 {
@@ -198,6 +198,15 @@ sorts nodes by path, edges by source/predicate/target/confidence, and claims by
 Claim path. The graph file does not replace Markdown as the source of
 frontmatter, body, or source provenance.
 
+The `kb-harness-core` exporter may also write two optional top-level
+collections: `views` (a list, present when the KB enables views) and
+`predicates` (an object, present when the vocabulary declares `broader` or
+`maps_to`). The loader accepts them, checks only that `views` is a list and
+`predicates` is an object, and does not retain them: they add no knowledge
+that retrieval reads, and they never affect ranking, chunking, the snapshot, or
+identity hashes. Any other top-level key is rejected, so a new exporter
+collection is an explicit contract change here rather than silently ignored.
+
 The loader treats `graph.json` as a synchronized derived artifact, not as a
 second source to union with Markdown. For every graph node, it compares the
 exported `path`, `type`, `title`, `description`, and `tags` with its Markdown
@@ -220,7 +229,13 @@ requires `url`. `author` may be one scalar string and `authors` may be a list
 of strings; the loader normalizes either form to an internal `authors` tuple
 (`author` becomes a one-item tuple). `lineage`, `pending`, and `checked` are
 optional metadata; `checked` is a date normalized to an ISO-8601 JSON date
-string. Other bibliographic fields are retained as metadata:
+string. `year` is optional; when present it is an integer or a string that
+is exactly an ASCII decimal integer (optionally signed, surrounding whitespace
+ignored), and the loader normalizes it to an integer. `kb-harness-core` does
+not constrain the YAML type of `year`, so `'2026'` and `2026` are both valid
+authored values and produce the same reference record and source hash. Any
+other value, including booleans, floats, and strings such as `'c. 1900'`, is a
+`snapshot_load_error`. Other bibliographic fields are retained as metadata:
 
 ```yaml
 archive-1936:
